@@ -1,0 +1,27 @@
+{
+  // Terminal → Run Task → "PaQueueKame: start" installs packages (first time) and starts the app.
+  // It also runs by itself when you open this folder, after VS Code asks once to allow automatic tasks.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PaQueueKame: start",
+      "type": "shell",
+      "command": "npm install; npm run dev",
+      "windows": { "command": "npm install; if ($?) { npm run dev }" },
+      "options": { "env": { "CI": "true" } },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "runOptions": { "runOn": "folderOpen" }
+    },
+    {
+      "label": "PaQueueKame: dev only",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "env": { "CI": "true" } },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true }
+    }
+  ]
+}

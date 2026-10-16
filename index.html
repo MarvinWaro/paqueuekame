@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#EEF2EF" />
+    <meta name="description" content="A fair open-play queue for your pickleball team. Courts, Up Next and the line, live on everyone's phone." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600..900&family=Figtree:wght@400..800&display=swap"
+    />
+    <script>
+      // Set the theme before the first paint so the page never flashes the wrong colors.
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("pq:theme"); } catch (e) {}
+        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <title>PaQueueKame</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

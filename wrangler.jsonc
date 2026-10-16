@@ -1,0 +1,25 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "paqueuekame",
+	"main": "./worker/index.ts",
+	"compatibility_date": "2026-04-01",
+	"assets": {
+		// Unknown paths like /live/abc123 load the React app.
+		"not_found_handling": "single-page-application",
+		// Only API calls run the Worker. Page and file requests are free and unlimited.
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "paqueuekame",
+			"database_id": "c84ee2e4-6091-4441-ab14-7c28a7b7f6a4",
+			"migrations_dir": "migrations"
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}
