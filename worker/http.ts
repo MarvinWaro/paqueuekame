@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import type { ZodType, ZodTypeAny, output } from "zod";
 
 /** An error with a message that is safe to show to the person using the app. */
 export class HttpError extends Error {
@@ -27,6 +27,17 @@ export async function readJson<T>(req: Request, schema: ZodType<T>): Promise<T> 
   } catch {
     throw new HttpError(400, "The request was not valid JSON.");
   }
+  return parse(raw, schema);
+}
+
+/** Validates the query string, e.g. ?range=month&place=… */
+export function readQuery<S extends ZodTypeAny>(url: URL, schema: S): output<S> {
+  const raw: Record<string, string> = {};
+  url.searchParams.forEach((value, key) => (raw[key] = value));
+  return parse(raw, schema);
+}
+
+function parse<S extends ZodTypeAny>(raw: unknown, schema: S): output<S> {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

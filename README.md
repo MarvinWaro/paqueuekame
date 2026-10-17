@@ -1,4 +1,6 @@
-# PaQueueKame
+# NEXA
+
+(Internal and infrastructure name: `paqueuekame`, used for the Worker, the D1 database, cookies and storage keys.)
 
 An open-play queue for a pickleball team. The organizer runs the courts from a phone; players follow the line on theirs.
 
@@ -50,7 +52,7 @@ To try the player side, open the live link in a private window, or open the chec
 3. In the Cloudflare dashboard: **Workers & Pages → Create → Import a repository**, pick the repo.
    - Build command: `npm run build`
    - Deploy command: `npx wrangler deploy`
-4. Free subdomain on your existing domain: Worker → **Settings → Domains & Routes → Add → Custom domain** → `paqueuekame.tatak.trade` (or any name you like).
+4. Live address: **https://nexa.nexus** (registered with Cloudflare). It is set in `wrangler.jsonc` under `routes` with `custom_domain: true`, so `npm run deploy` attaches it and sets up HTTPS. The `*.workers.dev` address keeps working as a backup.
 
 **New migration later?** Run `npm run db:migrate:remote` before merging to `main`.
 

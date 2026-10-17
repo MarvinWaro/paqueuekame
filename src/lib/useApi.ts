@@ -9,6 +9,8 @@ export function useApi<T>(path: string | null, options: { pollMs?: number } = {}
   const [loading, setLoading] = useState(path !== null);
   const [version, setVersion] = useState(0);
   const busy = useRef(false);
+  const latest = useRef<T | null>(null);
+  latest.current = data;
 
   useEffect(() => {
     if (path === null) return;
@@ -42,8 +44,16 @@ export function useApi<T>(path: string | null, options: { pollMs?: number } = {}
     const tick = () => {
       if (document.visibilityState !== "visible" || busy.current) return;
       busy.current = true;
-      api<T>(path)
-        .then((d) => setData(d))
+      // Send the version we have; the server replies "unchanged" if nothing happened.
+      const version = (latest.current as { version?: unknown } | null)?.version;
+      const url = typeof version === "number" ? `${path}${path.includes("?") ? "&" : "?"}v=${version}` : path;
+      api<T | { unchanged: true; serverTime: number }>(url)
+        .then((d) => {
+          if (d && typeof d === "object" && "unchanged" in d) {
+            // Keep the data; refresh only the server clock used for game timers.
+            setData((prev) => (prev && typeof prev === "object" && "serverTime" in prev ? { ...prev, serverTime: d.serverTime } : prev));
+          } else setData(d as T);
+        })
         .catch(() => {
           // Keep showing the last good data; the next tick tries again.
         })

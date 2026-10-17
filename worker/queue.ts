@@ -1,25 +1,46 @@
 // The matching engine. Pure functions, no database, so it's easy to test.
 //
-// Rules ("all 4 off, balanced"):
+// Rules (all modes):
 // 1. Line order is the base. The player who has waited longest always plays next.
 // 2. Anyone passed over twice (MAX_SKIPS) must be in the next game.
 // 3. Among the first few in line, pick the 4 players and team split that best avoid
 //    repeat partners and repeat opponents, and keep the teams' skill close.
 // 4. After a game, all 4 go to the back of the line.
+// The matching mode only changes how step 3 weighs things (see MODES).
+
+import { MATCH_MODES, type MatchMode } from "../shared/matchModes";
 
 export const POOL_SIZE = 8;
 export const MAX_SKIPS = 2;
-
-const W_WAIT = 10; // per place deeper in line
-const W_PARTNER = 25; // per earlier game together as partners
-const W_OPPONENT = 6; // per earlier game against each other
-const W_SKILL = 8; // per skill point difference between the two teams
 const DEFAULT_SKILL = 3;
+
+interface Weights {
+  pool: number; // how far down the line to look
+  wait: number; // per place deeper in line
+  partner: number; // per earlier game together as partners
+  opponent: number; // per earlier game against each other
+  teamSkill: number; // per skill point difference between the two teams
+  groupSkill: number; // per skill point between the best and weakest of the 4
+  lastResult: number; // per player whose last result differs from the first in line
+}
+
+const MODES: Record<MatchMode, Weights> = {
+  // Fair teams, fresh partners.
+  balanced: { pool: 8, wait: 10, partner: 25, opponent: 6, teamSkill: 8, groupSkill: 0, lastResult: 0 },
+  // Ignore skill; rotate partners and opponents as much as possible.
+  social: { pool: 8, wait: 10, partner: 40, opponent: 12, teamSkill: 0, groupSkill: 0, lastResult: 0 },
+  // Keep similar levels on the same court; looks further down the line to find them.
+  skill: { pool: 10, wait: 6, partner: 15, opponent: 4, teamSkill: 6, groupSkill: 30, lastResult: 0 },
+  // Last game's winners play winners, losers play losers.
+  winners: { pool: 10, wait: 6, partner: 20, opponent: 5, teamSkill: 6, groupSkill: 0, lastResult: 35 },
+};
 
 export interface Waiting {
   id: string;
   skill: number | null;
   skips: number;
+  /** Result of their last game this session. */
+  last?: "W" | "L" | null;
 }
 
 export interface Pick {
@@ -81,9 +102,10 @@ function combinations<T>(items: T[], k: number): T[][] {
  * Returns null when fewer than 4 players are waiting.
  * `avoid` skips one exact game (matchKey), used when the organizer taps Shuffle.
  */
-export function pickMatch(line: Waiting[], history: History, avoid?: string): Pick | null {
+export function pickMatch(line: Waiting[], history: History, avoid?: string, mode: MatchMode = "balanced"): Pick | null {
   if (line.length < 4) return null;
-  const pool = line.slice(0, Math.min(POOL_SIZE, line.length));
+  const w = MODES[mode in MATCH_MODES ? mode : "balanced"];
+  const pool = line.slice(0, Math.min(w.pool, line.length));
   const index = new Map(pool.map((p, i) => [p.id, i]));
 
   const required = pool.filter((p, i) => i === 0 || p.skips >= MAX_SKIPS).slice(0, 4);
@@ -94,7 +116,11 @@ export function pickMatch(line: Waiting[], history: History, avoid?: string): Pi
   for (const extra of combinations(optional, 4 - required.length)) {
     const four = [...required, ...extra];
     const [a, b, c, d] = four;
-    const waitCost = four.reduce((sum, p) => sum + index.get(p.id)!, 0) * W_WAIT;
+    const waitCost = four.reduce((sum, p) => sum + index.get(p.id)!, 0) * w.wait;
+    const levels = four.map((p) => p.skill ?? DEFAULT_SKILL);
+    const groupCost = (Math.max(...levels) - Math.min(...levels)) * w.groupSkill;
+    const anchor = pool[0].last ?? null;
+    const resultCost = w.lastResult ? four.filter((p) => (p.last ?? null) !== anchor).length * w.lastResult : 0;
     for (const [t1, t2] of [
       [
         [a, b],
@@ -115,13 +141,13 @@ export function pickMatch(line: Waiting[], history: History, avoid?: string): Pi
 
       const partnerCost =
         ((history.partners.get(pairKey(ids1[0], ids1[1])) ?? 0) + (history.partners.get(pairKey(ids2[0], ids2[1])) ?? 0)) *
-        W_PARTNER;
+        w.partner;
       let opponentCost = 0;
-      for (const x of ids1) for (const y of ids2) opponentCost += (history.opponents.get(pairKey(x, y)) ?? 0) * W_OPPONENT;
+      for (const x of ids1) for (const y of ids2) opponentCost += (history.opponents.get(pairKey(x, y)) ?? 0) * w.opponent;
       const skill = (team: Waiting[]) => team.reduce((s, p) => s + (p.skill ?? DEFAULT_SKILL), 0);
-      const skillCost = Math.abs(skill(t1) - skill(t2)) * W_SKILL;
+      const skillCost = Math.abs(skill(t1) - skill(t2)) * w.teamSkill;
 
-      const cost = waitCost + partnerCost + opponentCost + skillCost;
+      const cost = waitCost + groupCost + resultCost + partnerCost + opponentCost + skillCost;
       if (!best || cost < best.cost) {
         best = { cost, pick: { team1: [ids1[0], ids1[1]], team2: [ids2[0], ids2[1]] } };
       }

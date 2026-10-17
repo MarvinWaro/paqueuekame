@@ -12,6 +12,7 @@
     "deploy": "vite build && wrangler deploy",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply paqueuekame --local",
+    "db:fresh:local": "node -e \"try{require('fs').rmSync('.wrangler/state/v3/d1',{recursive:true,force:true})}catch(e){console.error('The local database is in use. Stop npm run dev (Ctrl+C), then run this again.');process.exit(1)}\" && wrangler d1 migrations apply paqueuekame --local",
     "db:migrate:remote": "wrangler d1 migrations apply paqueuekame --remote"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { MatchView, Player } from "../../shared/types";
-import { clock } from "../lib/format";
+import type { LiveScore, MatchView, Player } from "../../shared/types";
+import { clock, names } from "../lib/format";
 
 interface DiagramProps {
   team1?: Player[];
@@ -8,19 +8,29 @@ interface DiagramProps {
   winner?: 1 | 2 | null;
   youId?: string | null;
   label?: string;
+  serverId?: string | null; // marks who is serving while an umpire scores
+  onPlayer?: (p: Player) => void; // makes each name a button (organizer swap)
 }
 
 /** A pickleball court seen from above: each player stands in a service box, the kitchen sits beside the net. */
-export function CourtDiagram({ team1 = [], team2 = [], winner = null, youId = null, label }: DiagramProps) {
+export function CourtDiagram({ team1 = [], team2 = [], winner = null, youId = null, label, serverId = null, onPlayer }: DiagramProps) {
   const free = team1.length === 0 && team2.length === 0;
-  const box = (p: Player | undefined, side: 1 | 2) => (
-    <div className={`box ${winner === side ? "winner" : ""} ${p && p.id === youId ? "you" : ""}`}>{p?.name ?? ""}</div>
-  );
+  const box = (p: Player | undefined, side: 1 | 2) => {
+    const className = `box ${winner === side ? "winner" : ""} ${p && p.id === youId ? "you" : ""} ${p && p.id === serverId ? "serving" : ""}`;
+    return p && onPlayer ? (
+      <button type="button" className={className} onClick={() => onPlayer(p)} aria-label={`Swap ${p.name}`}>
+        {p.name}
+      </button>
+    ) : (
+      <div className={className}>{p?.name ?? ""}</div>
+    );
+  };
+  const server = [...team1, ...team2].find((p) => p.id === serverId);
   const description = free
     ? (label ?? "Empty court")
-    : `${team1.map((p) => p.name).join(" and ")} versus ${team2.map((p) => p.name).join(" and ")}`;
+    : `${team1.map((p) => p.name).join(" and ")} versus ${team2.map((p) => p.name).join(" and ")}${server ? `, ${server.name} serving` : ""}`;
   return (
-    <div className={`diagram ${free ? "is-free" : ""}`} role="img" aria-label={description}>
+    <div className={`diagram ${free ? "is-free" : ""}`} role={onPlayer ? "group" : "img"} aria-label={description}>
       <div className="half half-left">
         {box(team1[0], 1)}
         {box(team1[1], 1)}
@@ -43,9 +53,10 @@ interface CourtCardProps {
   youId?: string | null;
   children?: ReactNode;
   menu?: ReactNode;
+  onPlayer?: (p: Player) => void;
 }
 
-export function CourtCard({ court, match, now, youId, children, menu }: CourtCardProps) {
+export function CourtCard({ court, match, now, youId, children, menu, onPlayer }: CourtCardProps) {
   return (
     <article className="court" aria-label={`Court ${court}`}>
       <div className="court-head">
@@ -58,8 +69,35 @@ export function CourtCard({ court, match, now, youId, children, menu }: CourtCar
         )}
         {menu}
       </div>
-      <CourtDiagram team1={match?.team1} team2={match?.team2} youId={youId} label={`Court ${court} is free`} />
+      <CourtDiagram
+        team1={match?.team1}
+        team2={match?.team2}
+        youId={youId}
+        label={`Court ${court} is free`}
+        serverId={match?.live?.serverId}
+        onPlayer={match ? onPlayer : undefined}
+      />
+      {match?.live && <LiveScoreLine match={match} live={match.live} />}
       {children}
     </article>
+  );
+}
+
+/** The running score under a court an umpire is scoring. */
+function LiveScoreLine({ match, live }: { match: MatchView; live: LiveScore }) {
+  const server = [...match.team1, ...match.team2].find((p) => p.id === live.serverId);
+  const winners = live.winner === 1 ? match.team1 : live.winner === 2 ? match.team2 : null;
+  return (
+    <p className="live-score" aria-live="polite">
+      <b className="num">
+        {live.score1}–{live.score2}
+      </b>
+      <span>
+        {winners
+          ? `${names(winners)} won. The umpire is saving it.`
+          : `${live.call}${server ? `, ${server.name} serving` : ""}`}
+      </span>
+      {live.umpire && <span className="muted small">Umpire: {live.umpire}</span>}
+    </p>
   );
 }

@@ -1,11 +1,11 @@
 // Public routes for players: the live board (view only) and self check-in from the court QR.
 import type { CheckinRoster, Player } from "../../shared/types";
-import { checkIn, createGuest, setStatus } from "../actions";
+import { addRsvp, checkIn, createGuest, removeRsvp, setStatus } from "../actions";
 import type { Env } from "../env";
 import { HttpError, json, readJson } from "../http";
 import type { Router } from "../router";
-import { buildState, freshState, loadSession } from "../state";
-import { selfCheckinSchema, selfStatusSchema } from "../validate";
+import { buildState, freshState, loadSession, sentVersion, unchanged } from "../state";
+import { cancelComingSchema, comingSchema, selfCheckinSchema, selfStatusSchema } from "../validate";
 
 interface LiveRow {
   id: string;
@@ -14,11 +14,12 @@ interface LiveRow {
   status: "live" | "ended";
   checkin_token: string;
   self_checkin: number;
+  version: number;
 }
 
 async function findLive(env: Env, token: string): Promise<LiveRow> {
   const row = await env.DB.prepare(
-    "SELECT id, team_id, title, status, checkin_token, self_checkin FROM sessions WHERE live_token = ?",
+    "SELECT id, team_id, title, status, checkin_token, self_checkin, version FROM sessions WHERE live_token = ?",
   )
     .bind(token)
     .first<LiveRow>();
@@ -26,39 +27,74 @@ async function findLive(env: Env, token: string): Promise<LiveRow> {
   return row;
 }
 
-/** Self check-in needs the token from the QR code at the court, not just the shared live link. */
-function assertCheckinAllowed(row: LiveRow, k: string | null): void {
+/** Players can only join themselves while the session runs and the organizer allows it. */
+function assertJoinOpen(row: LiveRow): void {
   if (row.status !== "live") throw new HttpError(409, "This session has ended.", "session_ended");
   if (!row.self_checkin) throw new HttpError(403, "Self check-in is off. Ask an organizer to check you in.", "self_checkin_off");
+}
+
+/** Self check-in needs the token from the QR code at the court, not just the shared live link. */
+function assertCheckinAllowed(row: LiveRow, k: string | null): void {
+  assertJoinOpen(row);
   if (!k || k !== row.checkin_token) {
     throw new HttpError(403, "This check-in code is old or wrong. Scan the QR code at the court again.", "bad_checkin_code");
   }
 }
 
+async function rosterOf(env: Env, row: LiveRow): Promise<CheckinRoster> {
+  const [team, players] = await env.DB.batch([
+    env.DB.prepare("SELECT name FROM teams WHERE id = ?").bind(row.team_id),
+    env.DB.prepare(
+      "SELECT id, name, skill, is_guest FROM players WHERE team_id = ? AND archived_at IS NULL ORDER BY name COLLATE NOCASE",
+    ).bind(row.team_id),
+  ]);
+  return {
+    teamName: (team.results[0] as { name: string }).name,
+    sessionTitle: row.title,
+    players: (players.results as { id: string; name: string; skill: number | null; is_guest: number }[]).map(
+      (p): Player => ({ id: p.id, name: p.name, skill: p.skill, isGuest: p.is_guest === 1 }),
+    ),
+  };
+}
+
 export function liveRoutes(router: Router): void {
-  router.get("/api/live/:token", async ({ env, params }) => {
+  router.get("/api/live/:token", async ({ env, params, url }) => {
     const row = await findLive(env, params.token);
     // Read-only: players polling the board never write to the database.
+    // Nothing changed since their last poll? Answer from the one row already read.
+    const v = sentVersion(url);
+    if (v !== null && v === row.version) return json(unchanged(row.version));
     return json(buildState(await loadSession(env, row.id), false));
   });
 
+  // The court QR's name list.
   router.get("/api/live/:token/roster", async ({ env, params, url }) => {
     const row = await findLive(env, params.token);
     assertCheckinAllowed(row, url.searchParams.get("k"));
-    const [team, players] = await env.DB.batch([
-      env.DB.prepare("SELECT name FROM teams WHERE id = ?").bind(row.team_id),
-      env.DB.prepare(
-        "SELECT id, name, skill, is_guest FROM players WHERE team_id = ? AND archived_at IS NULL ORDER BY name COLLATE NOCASE",
-      ).bind(row.team_id),
-    ]);
-    const roster: CheckinRoster = {
-      teamName: (team.results[0] as { name: string }).name,
-      sessionTitle: row.title,
-      players: (players.results as { id: string; name: string; skill: number | null; is_guest: number }[]).map(
-        (p): Player => ({ id: p.id, name: p.name, skill: p.skill, isGuest: p.is_guest === 1 }),
-      ),
-    };
-    return json(roster);
+    return json(await rosterOf(env, row));
+  });
+
+  // The same list for "I'm coming" from the group-chat link. Joining the line still needs the court.
+  router.get("/api/live/:token/members", async ({ env, params }) => {
+    const row = await findLive(env, params.token);
+    assertJoinOpen(row);
+    return json(await rosterOf(env, row));
+  });
+
+  router.post("/api/live/:token/coming", async ({ env, req, params }) => {
+    const body = await readJson(req, comingSchema);
+    const row = await findLive(env, params.token);
+    assertJoinOpen(row);
+    const playerId = body.playerId ?? (await createGuest(env, row.team_id, body.name!, null));
+    await addRsvp(env, await loadSession(env, row.id), playerId);
+    return json({ playerId, state: await freshState(env, row.id, false) });
+  });
+
+  router.post("/api/live/:token/coming/cancel", async ({ env, req, params }) => {
+    const body = await readJson(req, cancelComingSchema);
+    const row = await findLive(env, params.token);
+    await removeRsvp(env, row.id, body.playerId);
+    return json(await freshState(env, row.id, false));
   });
 
   router.post("/api/live/:token/checkin", async ({ env, req, params }) => {

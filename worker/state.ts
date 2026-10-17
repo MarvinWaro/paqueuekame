@@ -3,27 +3,42 @@ import type {
   Attendance,
   AttendanceStatus,
   CourtView,
+  LiveScore,
   MatchStatus,
   MatchView,
   Player,
   QueueEntry,
   SessionState,
+  SessionStats,
   Standing,
+  Unchanged,
 } from "../shared/types";
+import { courtColorsOf, customColorsOf } from "../shared/courtThemes";
+import { sideoutScore } from "../shared/sideout";
+import { compareStandings } from "../shared/standings";
 import type { Env } from "./env";
 import { HttpError } from "./http";
 import { ulid } from "./ids";
+import { matchModeOf } from "../shared/matchModes";
 import { type History, type Waiting, addGame, emptyHistory, pickMatch } from "./queue";
 
 const DEFAULT_GAME_MINUTES = 12;
+/** How long the latest result can go back on court. After that, Edit result fixes the winner or score. */
+export const UNDO_MINUTES = 15;
 
 export interface SessionRow {
   id: string;
   team_id: string;
   team_name: string;
+  court_theme: string;
+  court_color: string | null;
+  kitchen_color: string | null;
   title: string;
-  venue: string | null;
+  place_id: string | null;
+  venue: string | null; // the place's name
   court_count: number;
+  version: number;
+  mode: string;
   status: "live" | "ended";
   live_token: string;
   checkin_token: string;
@@ -53,6 +68,20 @@ interface MatchRow {
   created_at: number;
   started_at: number | null;
   ended_at: number | null;
+  first_server: 1 | 2 | null;
+  umpire_id: string | null;
+}
+
+interface RallyRow {
+  match_id: string;
+  winner: 1 | 2;
+}
+
+export interface UmpireRow {
+  id: string;
+  player_id: string;
+  name: string;
+  token: string;
 }
 
 interface MatchPlayerRow {
@@ -62,17 +91,28 @@ interface MatchPlayerRow {
   prev_queued_at: number | null;
 }
 
+interface ComingRow {
+  player_id: string;
+  name: string;
+  skill: number | null;
+  is_guest: number;
+}
+
 export interface Loaded {
   session: SessionRow;
   attendees: AttendeeRow[];
   matches: MatchRow[];
   matchPlayers: MatchPlayerRow[];
+  coming: ComingRow[];
+  rallies: RallyRow[]; // games on court only, in order
+  umpires: UmpireRow[]; // active only
 }
 
 export async function loadSession(env: Env, sessionId: string): Promise<Loaded> {
-  const [s, a, m, mp] = await env.DB.batch([
+  const [s, a, m, mp, c, r, u] = await env.DB.batch([
     env.DB.prepare(
-      `SELECT s.*, t.name AS team_name FROM sessions s JOIN teams t ON t.id = s.team_id WHERE s.id = ?`,
+      `SELECT s.*, p.name AS venue, t.name AS team_name, t.court_theme, t.court_color, t.kitchen_color
+       FROM sessions s JOIN teams t ON t.id = s.team_id LEFT JOIN places p ON p.id = s.place_id WHERE s.id = ?`,
     ).bind(sessionId),
     env.DB.prepare(
       `SELECT sp.player_id, p.name, p.skill, p.is_guest, sp.status, sp.queued_at, sp.skips, sp.joined_at
@@ -80,13 +120,26 @@ export async function loadSession(env: Env, sessionId: string): Promise<Loaded> 
        WHERE sp.session_id = ?`,
     ).bind(sessionId),
     env.DB.prepare(
-      `SELECT id, status, court, winner, score1, score2, created_at, started_at, ended_at
+      `SELECT id, status, court, winner, score1, score2, created_at, started_at, ended_at, first_server, umpire_id
        FROM matches WHERE session_id = ? AND status != 'cancelled'`,
     ).bind(sessionId),
     env.DB.prepare(
       `SELECT mp.match_id, mp.player_id, mp.team, mp.prev_queued_at
        FROM match_players mp JOIN matches m ON m.id = mp.match_id
        WHERE m.session_id = ? AND m.status != 'cancelled'`,
+    ).bind(sessionId),
+    env.DB.prepare(
+      `SELECT r.player_id, p.name, p.skill, p.is_guest
+       FROM session_rsvps r JOIN players p ON p.id = r.player_id
+       WHERE r.session_id = ? ORDER BY r.created_at`,
+    ).bind(sessionId),
+    env.DB.prepare(
+      `SELECT r.match_id, r.winner FROM rallies r JOIN matches m ON m.id = r.match_id
+       WHERE m.session_id = ? AND m.status = 'playing' ORDER BY r.match_id, r.seq`,
+    ).bind(sessionId),
+    env.DB.prepare(
+      `SELECT u.id, u.player_id, p.name, u.token FROM umpires u JOIN players p ON p.id = u.player_id
+       WHERE u.session_id = ? AND u.revoked_at IS NULL ORDER BY u.created_at`,
     ).bind(sessionId),
   ]);
   const session = s.results[0] as SessionRow | undefined;
@@ -96,6 +149,9 @@ export async function loadSession(env: Env, sessionId: string): Promise<Loaded> 
     attendees: a.results as AttendeeRow[],
     matches: m.results as MatchRow[],
     matchPlayers: mp.results as MatchPlayerRow[],
+    coming: c.results as ComingRow[],
+    rallies: r.results as RallyRow[],
+    umpires: u.results as UmpireRow[],
   };
 }
 
@@ -138,6 +194,20 @@ export function waitingLine(loaded: Loaded): AttendeeRow[] {
     .sort((x, y) => x.queued_at - y.queued_at || x.joined_at - y.joined_at || (x.player_id < y.player_id ? -1 : 1));
 }
 
+/** Each player's result in their most recent finished game. */
+function lastResults(loaded: Loaded): Map<string, "W" | "L"> {
+  const teams = teamsOf(loaded);
+  const out = new Map<string, "W" | "L">();
+  const done = loaded.matches.filter((m) => m.status === "done").sort((a, b) => (a.ended_at ?? 0) - (b.ended_at ?? 0));
+  for (const m of done) {
+    const t = teams.get(m.id);
+    if (!t) continue;
+    for (const id of t.team1) out.set(id, m.winner === 1 ? "W" : "L");
+    for (const id of t.team2) out.set(id, m.winner === 2 ? "W" : "L");
+  }
+  return out;
+}
+
 function historyOf(loaded: Loaded): History {
   const teams = teamsOf(loaded);
   const history = emptyHistory();
@@ -164,8 +234,11 @@ export function deleteNextStatements(env: Env, matchId: string) {
 export async function refillNext(env: Env, loaded: Loaded, avoid?: string): Promise<boolean> {
   if (loaded.session.status !== "live") return false;
   if (loaded.matches.some((m) => m.status === "next")) return false;
-  const line: Waiting[] = waitingLine(loaded).map((a) => ({ id: a.player_id, skill: a.skill, skips: a.skips }));
-  const pick = pickMatch(line, historyOf(loaded), avoid) ?? (avoid ? pickMatch(line, historyOf(loaded)) : null);
+  const last = lastResults(loaded);
+  const line: Waiting[] = waitingLine(loaded).map((a) => ({ id: a.player_id, skill: a.skill, skips: a.skips, last: last.get(a.player_id) ?? null }));
+  const mode = matchModeOf(loaded.session.mode);
+  const history = historyOf(loaded);
+  const pick = pickMatch(line, history, avoid, mode) ?? (avoid ? pickMatch(line, history, undefined, mode) : null);
   if (!pick) return false;
 
   const matchId = ulid();
@@ -195,6 +268,27 @@ export async function freshState(env: Env, sessionId: string, forOrganizer: bool
   return buildState(loaded, forOrganizer);
 }
 
+// ---------- Cheap polling ----------
+
+/** The `v` a poll sent, or null when it didn't send one. */
+export function sentVersion(url: URL): number | null {
+  const v = url.searchParams.get("v");
+  return v !== null && /^\d{1,9}$/.test(v) ? Number(v) : null;
+}
+
+export function unchanged(version: number): Unchanged {
+  return { unchanged: true, version, serverTime: Date.now() };
+}
+
+/** The running side-out score of a game on court, worked out from its rallies. Null until an umpire starts it. */
+export function liveScoreOf(loaded: Loaded, m: Loaded["matches"][number], teams = teamsOf(loaded)): LiveScore | null {
+  const t = teams.get(m.id);
+  if (m.status !== "playing" || !m.first_server || !t) return null;
+  const rallies = loaded.rallies.filter((r) => r.match_id === m.id).map((r) => r.winner);
+  const umpire = loaded.umpires.find((u) => u.id === m.umpire_id);
+  return { ...sideoutScore(m.first_server, rallies, t.team1, t.team2), umpireId: m.umpire_id, umpire: umpire?.name ?? null };
+}
+
 // ---------- API shape ----------
 
 export function buildState(loaded: Loaded, forOrganizer: boolean): SessionState {
@@ -217,6 +311,7 @@ export function buildState(loaded: Loaded, forOrganizer: boolean): SessionState 
       score2: m.score2,
       startedAt: m.started_at,
       endedAt: m.ended_at,
+      live: liveScoreOf(loaded, m, teams),
     };
   };
 
@@ -273,22 +368,62 @@ export function buildState(loaded: Loaded, forOrganizer: boolean): SessionState 
     .map((a) => ({ player: people.get(a.player_id)!, status: a.status, games: stats.get(a.player_id)?.games ?? 0 }))
     .sort((x, y) => x.player.name.localeCompare(y.player.name));
 
+  // Who each player faced, for opponent strength.
+  const faced = new Map<string, string[]>();
+  for (const m of done) {
+    const t = teams.get(m.id);
+    if (!t) continue;
+    for (const a of t.team1) faced.set(a, [...(faced.get(a) ?? []), ...t.team2]);
+    for (const b of t.team2) faced.set(b, [...(faced.get(b) ?? []), ...t.team1]);
+  }
+  const rate = (id: string) => {
+    const s = stats.get(id);
+    return s && s.games ? s.wins / s.games : 0;
+  };
   const standings: Standing[] = [...stats.entries()]
-    .map(([id, s]) => ({ player: people.get(id)!, games: s.games, wins: s.wins, losses: s.games - s.wins, pointDiff: s.diff }))
+    .map(([id, s]) => {
+      const opps = faced.get(id) ?? [];
+      return {
+        player: people.get(id)!,
+        games: s.games,
+        wins: s.wins,
+        losses: s.games - s.wins,
+        pointDiff: s.diff,
+        winRate: s.games ? s.wins / s.games : 0,
+        oppStrength: opps.length ? opps.reduce((sum, o) => sum + rate(o), 0) / opps.length : 0,
+      };
+    })
     .filter((s) => s.player)
-    .sort(
-      (a, b) =>
-        b.wins - a.wins ||
-        b.wins / b.games - a.wins / a.games ||
-        b.pointDiff - a.pointDiff ||
-        a.player.name.localeCompare(b.player.name),
-    );
+    .sort(compareStandings);
+
+  // Session pace: game length, and how long each player waited in line before a game.
+  const timed = done.filter((m) => m.started_at && m.ended_at);
+  const waits: number[] = [];
+  for (const mp of loaded.matchPlayers) {
+    const m = done.find((x) => x.id === mp.match_id);
+    if (m?.started_at && mp.prev_queued_at != null && m.started_at >= mp.prev_queued_at) waits.push(m.started_at - mp.prev_queued_at);
+  }
+  const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length / 1000) : null);
+  const starts = timed.map((m) => m.started_at!);
+  const ends = timed.map((m) => m.ended_at!);
+  const sessionStats: SessionStats = {
+    games: done.length,
+    minutes: timed.length ? Math.round((Math.max(...ends) - Math.min(...starts)) / 60000) : 0,
+    courts: session.court_count,
+    players: loaded.attendees.length,
+    avgGameSeconds: avg(timed.map((m) => m.ended_at! - m.started_at!)),
+    avgWaitSeconds: avg(waits),
+    timedGames: timed.length,
+  };
 
   return {
+    version: session.version,
     teamName: session.team_name,
+    courtColors: courtColorsOf(session.court_theme, customColorsOf(session.court_color, session.kitchen_color)),
     session: {
       id: session.id,
       title: session.title,
+      placeId: session.place_id,
       venue: session.venue,
       courtCount: session.court_count,
       status: session.status,
@@ -297,16 +432,25 @@ export function buildState(loaded: Loaded, forOrganizer: boolean): SessionState 
       playerCount: loaded.attendees.length,
       gameCount: done.length,
       selfCheckin: session.self_checkin === 1,
+      mode: matchModeOf(session.mode),
       liveToken: session.live_token,
     },
     courts,
     next: nextRow ? view(nextRow) : null,
     queue,
     attendance,
+    coming: loaded.coming.map((c) => ({ id: c.player_id, name: c.name, skill: c.skill, isGuest: c.is_guest === 1 })),
     results: done.slice(0, 40).map(view),
+    undoUntil: session.status === "live" && done[0]?.ended_at ? done[0].ended_at + UNDO_MINUTES * 60000 : null,
     standings,
     avgGameMinutes,
+    stats: sessionStats,
     serverTime: Date.now(),
-    ...(forOrganizer ? { checkinToken: session.checkin_token } : {}),
+    ...(forOrganizer
+      ? {
+          checkinToken: session.checkin_token,
+          umpires: loaded.umpires.map((u) => ({ id: u.id, playerId: u.player_id, name: u.name, token: u.token })),
+        }
+      : {}),
   };
 }

@@ -13,10 +13,17 @@ function subscribe(listener: () => void) {
 }
 
 export function navigate(to: string, options: { replace?: boolean } = {}) {
-  if (options.replace) history.replaceState(null, "", to);
-  else history.pushState(null, "", to);
+  // Pages opened inside the app are marked, so goBack knows the previous page is ours.
+  if (options.replace) history.replaceState(history.state, "", to);
+  else history.pushState({ inApp: true }, "", to);
   listeners.forEach((l) => l());
   window.scrollTo(0, 0);
+}
+
+/** Goes back like the phone's back button, or to `fallback` when the page was opened directly (shared link, refresh). */
+export function goBack(fallback: string) {
+  if ((history.state as { inApp?: boolean } | null)?.inApp) history.back();
+  else navigate(fallback, { replace: true });
 }
 
 export function usePath(): string {

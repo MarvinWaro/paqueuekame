@@ -1,22 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { SessionState } from "../../shared/types";
+import type { CheckinRoster, SessionState } from "../../shared/types";
 import { BrandMark } from "../components/Brand";
 import { CourtCard } from "../components/Court";
 import { Icon } from "../components/Icon";
+import { NamePicker } from "../components/NamePicker";
 import { Sheet } from "../components/Sheet";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useToast } from "../components/Toast";
 import { api, errorMessage } from "../lib/api";
+import { useCourtColors } from "../lib/courtTheme";
 import { minutes, ordinal, plural } from "../lib/format";
 import { codeKey, meKey, readItem, removeItem, writeItem } from "../lib/storage";
 import { useApi, useNow } from "../lib/useApi";
-import { GameLog, Standings } from "./Results";
+import { GameLog, Podium, SessionSummary, Standings } from "./Results";
 
 type Mine =
   | { kind: "unknown" }
   | { kind: "playing"; court: number }
   | { kind: "next" }
   | { kind: "line"; position: number; est: number }
+  | { kind: "coming" }
   | { kind: "break" }
   | { kind: "left" }
   | { kind: "out" };
@@ -28,6 +31,7 @@ function whereAmI(state: SessionState, me: string | null): Mine {
   if (state.next && [...state.next.team1, ...state.next.team2].some((p) => p.id === me)) return { kind: "next" };
   const q = state.queue.find((x) => x.player.id === me);
   if (q) return { kind: "line", position: q.position, est: q.estMinutes };
+  if (state.coming.some((p) => p.id === me)) return { kind: "coming" };
   const a = state.attendance.find((x) => x.player.id === me);
   if (a?.status === "break") return { kind: "break" };
   if (a?.status === "left") return { kind: "left" };
@@ -39,14 +43,20 @@ export function Live({ token }: { token: string }) {
   const [me, setMe] = useState<string | null>(() => readItem(meKey(token)));
   const code = readItem(codeKey(token));
   const [picking, setPicking] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const { data: members } = useApi<CheckinRoster>(joining ? `/api/live/${token}/members` : null);
   const [alerts, setAlerts] = useState(() => typeof Notification !== "undefined" && Notification.permission === "granted");
   const [pulse, setPulse] = useState(false);
   const toast = useToast();
   const skew = useMemo(() => (state ? state.serverTime - Date.now() : 0), [state]);
   const now = useNow(1000) + skew;
 
+  useCourtColors(state?.courtColors);
   const mine = state ? whereAmI(state, me) : ({ kind: "unknown" } as Mine);
-  const myName = state?.attendance.find((a) => a.player.id === me)?.player.name ?? null;
+  const myName =
+    state?.attendance.find((a) => a.player.id === me)?.player.name ?? state?.coming.find((p) => p.id === me)?.name ?? null;
 
   // Buzz once when this player moves into Up Next or onto a court.
   const previous = useRef<Mine["kind"] | null>(null);
@@ -77,7 +87,7 @@ export function Live({ token }: { token: string }) {
   }, [mine.kind]);
 
   useEffect(() => {
-    if (state) document.title = `${state.session.title} · PaQueueKame`;
+    if (state) document.title = `${state.session.title} · NEXA`;
   }, [state?.session.title]);
 
   const chooseMe = (id: string | null) => {
@@ -85,6 +95,34 @@ export function Live({ token }: { token: string }) {
     else removeItem(meKey(token));
     setMe(id);
     setPicking(false);
+  };
+
+  /** "I'm coming": on the organizer's Coming list; they join the line when they check in at the court. */
+  const comeAs = async (body: { playerId?: string; name?: string }) => {
+    setJoinBusy(true);
+    setJoinError(null);
+    try {
+      const res = await api<{ playerId: string; state: SessionState }>(`/api/live/${token}/coming`, { method: "POST", body });
+      writeItem(meKey(token), res.playerId);
+      setMe(res.playerId);
+      setData(res.state);
+      setJoining(false);
+      toast("See you at the court");
+    } catch (err) {
+      setJoinError(errorMessage(err));
+    } finally {
+      setJoinBusy(false);
+    }
+  };
+
+  const cancelComing = async () => {
+    if (!me) return;
+    try {
+      setData(await api<SessionState>(`/api/live/${token}/coming/cancel`, { method: "POST", body: { playerId: me } }));
+      toast("Thanks for letting us know");
+    } catch (err) {
+      toast(errorMessage(err));
+    }
   };
 
   const setStatus = async (status: "in" | "break" | "left", done: string) => {
@@ -123,6 +161,7 @@ export function Live({ token }: { token: string }) {
 
   const s = state.session;
   const live = s.status === "live";
+  const detail = { results: state.results, teamName: state.teamName, title: s.title };
 
   return (
     <>
@@ -150,8 +189,11 @@ export function Live({ token }: { token: string }) {
             name={myName}
             pulse={pulse}
             canAct={!!code && s.selfCheckin}
+            canJoin={s.selfCheckin}
             alerts={alerts}
             onPick={() => setPicking(true)}
+            onJoin={() => setJoining(true)}
+            onCancelComing={cancelComing}
             onStatus={setStatus}
             onAlerts={enableAlerts}
           />
@@ -168,7 +210,7 @@ export function Live({ token }: { token: string }) {
                 <div className="upnext-teams">
                   <div className="upnext-team">
                     {state.next.team1.map((p) => (
-                      <span key={p.id} className="chip" style={p.id === me ? { background: "var(--ball-ink)", color: "var(--ball)" } : undefined}>
+                      <span key={p.id} className={p.id === me ? "chip is-you" : "chip"}>
                         {p.name}
                       </span>
                     ))}
@@ -176,7 +218,7 @@ export function Live({ token }: { token: string }) {
                   <span className="upnext-vs">vs</span>
                   <div className="upnext-team">
                     {state.next.team2.map((p) => (
-                      <span key={p.id} className="chip" style={p.id === me ? { background: "var(--ball-ink)", color: "var(--ball)" } : undefined}>
+                      <span key={p.id} className={p.id === me ? "chip is-you" : "chip"}>
                         {p.name}
                       </span>
                     ))}
@@ -192,12 +234,16 @@ export function Live({ token }: { token: string }) {
               </div>
             )}
             {!live && (
-              <section className="panel">
-                <div className="section-head">
-                  <h2>Final standings</h2>
-                </div>
-                <Standings standings={state.standings} youId={me} />
-              </section>
+              <>
+                <SessionSummary stats={state.stats} />
+                <section className="panel">
+                  <div className="section-head">
+                    <h2>Final standings</h2>
+                  </div>
+                  <Podium standings={state.standings} />
+                  <Standings standings={state.standings} youId={me} detail={detail} />
+                </section>
+              </>
             )}
           </div>
 
@@ -238,7 +284,7 @@ export function Live({ token }: { token: string }) {
                 <div className="section-head">
                   <h2>Standings</h2>
                 </div>
-                <Standings standings={state.standings.slice(0, 10)} youId={me} />
+                <Standings standings={state.standings} limit={10} youId={me} detail={detail} />
               </section>
             )}
             {state.results.length > 0 && (
@@ -279,6 +325,25 @@ export function Live({ token }: { token: string }) {
           )}
         </Sheet>
       )}
+      {joining && (
+        <Sheet title="Who's coming?" onClose={() => setJoining(false)}>
+          <p className="muted">
+            The organizer will see you're on the way. You join the line when you check in at the court, so nobody loses their
+            place to someone still at home.
+          </p>
+          {members ? (
+            <NamePicker
+              players={members.players.filter((p) => !state.attendance.some((a) => a.player.id === p.id && a.status !== "left"))}
+              busy={joinBusy}
+              failure={joinError}
+              onPick={(p) => comeAs({ playerId: p.id })}
+              onGuest={(name) => comeAs({ name })}
+            />
+          ) : (
+            <p className="muted">Loading names…</p>
+          )}
+        </Sheet>
+      )}
     </>
   );
 }
@@ -288,8 +353,11 @@ function YouCard({
   name,
   pulse,
   canAct,
+  canJoin,
   alerts,
   onPick,
+  onJoin,
+  onCancelComing,
   onStatus,
   onAlerts,
 }: {
@@ -297,18 +365,30 @@ function YouCard({
   name: string | null;
   pulse: boolean;
   canAct: boolean;
+  canJoin: boolean;
   alerts: boolean;
   onPick: () => void;
+  onJoin: () => void;
+  onCancelComing: () => void;
   onStatus: (status: "in" | "break" | "left", done: string) => void;
   onAlerts: () => void;
 }) {
   if (mine.kind === "unknown") {
     return (
       <section className="you-card">
-        <p className="you-status">Where am I in line?</p>
-        <p className="muted">Tap your name to see your place and get an alert when you're up.</p>
-        <div className="row">
-          <button type="button" className="btn btn-primary" onClick={onPick}>
+        <p className="you-status">{canJoin ? "Playing today?" : "Where am I in line?"}</p>
+        <p className="muted">
+          {canJoin
+            ? "Tap I'm coming so the organizer knows. Already checked in? Find your name to see your place."
+            : "Tap your name to see your place and get an alert when you're up."}
+        </p>
+        <div className="row row-wrap">
+          {canJoin && (
+            <button type="button" className="btn btn-primary" onClick={onJoin}>
+              I'm coming
+            </button>
+          )}
+          <button type="button" className={canJoin ? "btn" : "btn btn-primary"} onClick={onPick}>
             Find my name
           </button>
         </div>
@@ -324,6 +404,11 @@ function YouCard({
       cls: "",
       title: `${ordinal((mine as { position: number }).position)} in line`,
       sub: `About ${minutes((mine as { est: number }).est)} until you're up.`,
+    },
+    coming: {
+      cls: "",
+      title: "You're on the way",
+      sub: "At the court, scan the QR code or tell the organizer you're here. That's when you join the line.",
     },
     break: { cls: "", title: "You're on break", sub: "Tap I'm back to join the back of the line." },
     left: { cls: "", title: "You went home", sub: "Check in again if you're staying." },
@@ -342,6 +427,16 @@ function YouCard({
       <p className="you-status">{v.title}</p>
       <p className="muted">{v.sub}</p>
       <div className="row row-wrap">
+        {mine.kind === "coming" && (
+          <button type="button" className="btn btn-sm" onClick={onCancelComing}>
+            Can't make it
+          </button>
+        )}
+        {canJoin && (mine.kind === "out" || mine.kind === "left") && !canAct && (
+          <button type="button" className="btn btn-sm btn-primary" onClick={onJoin}>
+            I'm coming
+          </button>
+        )}
         {canAct && mine.kind === "line" && (
           <button type="button" className="btn btn-sm" onClick={() => onStatus("break", "You're on break")}>
             Take a break

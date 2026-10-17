@@ -6,8 +6,10 @@ import { Login, Register } from "./pages/Auth";
 import { Landing } from "./pages/Landing";
 import { Live } from "./pages/Live";
 import { SelfCheckin } from "./pages/SelfCheckin";
+import { Umpire } from "./pages/Umpire";
 import { AppHome } from "./pages/app/AppHome";
 import { AppLayout } from "./pages/app/AppLayout";
+import { Club } from "./pages/app/Club";
 import { Players } from "./pages/app/Players";
 import { SessionControl } from "./pages/app/SessionControl";
 import { Sessions } from "./pages/app/Sessions";
@@ -25,6 +27,8 @@ function Routes() {
   if (live) return <Live key={live.token} token={live.token} />;
   const checkin = matchPath("/live/:token/checkin", path);
   if (checkin) return <SelfCheckin token={checkin.token} />;
+  const umpire = matchPath("/ump/:token", path);
+  if (umpire) return <Umpire key={umpire.token} token={umpire.token} />;
 
   const session = matchPath("/app/session/:id", path);
   if (session) {
@@ -36,6 +40,7 @@ function Routes() {
   }
   const pages: Record<string, () => JSX.Element> = {
     "/app/sessions": Sessions,
+    "/app/club": Club,
     "/app/players": Players,
     "/app/team": TeamSettings,
   };

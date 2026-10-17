@@ -18,6 +18,8 @@ const paths = {
   moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z",
   more: "M5 12h.01 M12 12h.01 M19 12h.01",
   undo: "M9 5 4 10l5 5 M4 10h10a5 5 0 0 1 0 10h-3",
+  edit: "M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4 M13.5 6.5l4 4",
+  chevron: "M9 6l6 6-6 6",
   bell: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Z M10 20a2 2 0 0 0 4 0",
   check: "M5 12.5l4.5 4.5L19 7.5",
   logout: "M15 4h4v16h-4 M10 8l-4 4 4 4 M6 12h10",
@@ -32,7 +34,7 @@ export function Icon({ name, className = "icon", label }: { name: IconName; clas
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
       role={label ? "img" : undefined}

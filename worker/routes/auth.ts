@@ -1,5 +1,6 @@
 // Organizer sign-up, log-in, team settings and co-organizers.
-import type { Me, Organizer } from "../../shared/types";
+import { CUSTOM_THEME, DEFAULT_COURT_THEME } from "../../shared/courtThemes";
+import type { Me, Organizer, Team } from "../../shared/types";
 import { type OrganizerRow, createLogin, destroyLogin, hashPassword, requireOrganizer, verifyPassword } from "../auth";
 import { HttpError, json, readJson } from "../http";
 import { ulid } from "../ids";
@@ -11,6 +12,8 @@ const LOCK_MINUTES = 10;
 const MAX_ORGANIZERS = 10;
 
 const toOrganizer = (o: { id: string; name: string; email: string }): Organizer => ({ id: o.id, name: o.name, email: o.email });
+// Drops server-only fields (timezone) from the logged-in team.
+const toTeam = (t: Team): Team => ({ id: t.id, slug: t.slug, name: t.name, courtTheme: t.courtTheme, customColors: t.customColors });
 
 export function authRoutes(router: Router): void {
   router.post("/api/auth/register", async ({ env, req }) => {
@@ -26,7 +29,13 @@ export function authRoutes(router: Router): void {
     const teamId = ulid(now);
     const organizerId = ulid(now);
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO teams (id, slug, name, created_at) VALUES (?, ?, ?, ?)").bind(teamId, body.slug, body.teamName, now),
+      env.DB.prepare("INSERT INTO teams (id, slug, name, court_theme, created_at) VALUES (?, ?, ?, ?, ?)").bind(
+        teamId,
+        body.slug,
+        body.teamName,
+        DEFAULT_COURT_THEME,
+        now,
+      ),
       env.DB.prepare(
         "INSERT INTO organizers (id, team_id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       ).bind(organizerId, teamId, body.name, body.email, await hashPassword(body.password), now),
@@ -34,7 +43,7 @@ export function authRoutes(router: Router): void {
     const cookie = await createLogin(env, req, organizerId);
     const me: Me = {
       organizer: { id: organizerId, name: body.name, email: body.email },
-      team: { id: teamId, slug: body.slug, name: body.teamName },
+      team: { id: teamId, slug: body.slug, name: body.teamName, courtTheme: DEFAULT_COURT_THEME, customColors: null },
       liveSessionId: null,
     };
     return json(me, 201, { "set-cookie": cookie });
@@ -79,7 +88,7 @@ export function authRoutes(router: Router): void {
       .first<{ id: string }>();
     const me: Me = {
       organizer: toOrganizer(organizer),
-      team: { id: team.id, slug: team.slug, name: team.name },
+      team: toTeam(team),
       liveSessionId: live?.id ?? null,
     };
     return json(me);
@@ -100,8 +109,16 @@ export function authRoutes(router: Router): void {
   router.patch("/api/team", async ({ env, req }) => {
     const { team } = await requireOrganizer(env, req);
     const body = await readJson(req, teamSchema);
-    await env.DB.prepare("UPDATE teams SET name = ? WHERE id = ?").bind(body.name, team.id).run();
-    return json({ ...team, name: body.name });
+    const name = body.name ?? team.name;
+    const courtTheme = body.courtTheme ?? team.courtTheme;
+    const customColors = body.customColors ?? team.customColors;
+    if (courtTheme === CUSTOM_THEME && !customColors) {
+      throw new HttpError(400, "Pick a court color and a kitchen color first.", "no_custom_colors");
+    }
+    await env.DB.prepare("UPDATE teams SET name = ?, court_theme = ?, court_color = ?, kitchen_color = ? WHERE id = ?")
+      .bind(name, courtTheme, customColors?.court ?? null, customColors?.kitchen ?? null, team.id)
+      .run();
+    return json(toTeam({ ...team, name, courtTheme, customColors }));
   });
 
   router.get("/api/organizers", async ({ env, req }) => {

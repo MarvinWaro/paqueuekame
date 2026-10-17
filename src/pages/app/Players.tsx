@@ -54,7 +54,9 @@ export function Players() {
                     {p.isGuest && <span className="pill pill-guest">Guest</span>}
                     <Skill value={p.skill} />
                   </span>
-                  <span className="muted small num">{plural(p.games, "game")}</span>
+                  <span className="muted small num" title="Across all sessions">
+                    {plural(p.games, "game")} · {plural(p.sessions, "session")}
+                  </span>
                 </button>
               </li>
             ))}

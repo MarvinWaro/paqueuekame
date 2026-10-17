@@ -4,13 +4,17 @@ import { Icon } from "./Icon";
 /** Bottom drawer on phones, centered dialog on wider screens. Esc or the scrim closes it. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const panel = useRef<HTMLDivElement | null>(null);
+  // Keep the latest onClose without re-running the effect, so a re-render never moves the cursor.
+  const close = useRef(onClose);
+  close.current = onClose;
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const first = panel.current?.querySelector<HTMLElement>("input, button:not(.sheet-close), [href], select, textarea");
     (first ?? panel.current)?.focus();
+    // Runs once when the sheet opens.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") close.current();
       if (e.key !== "Tab" || !panel.current) return;
       const items = [...panel.current.querySelectorAll<HTMLElement>("button, [href], input, select, textarea")].filter(
         (el) => !el.hasAttribute("disabled"),
@@ -32,7 +36,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
       document.body.style.overflow = "";
       previous?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>

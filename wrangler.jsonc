@@ -3,6 +3,13 @@
 	"name": "paqueuekame",
 	"main": "./worker/index.ts",
 	"compatibility_date": "2026-04-01",
+	// The live address. `npm run deploy` attaches the domain and sets up HTTPS; the workers.dev address stays as a backup.
+	"routes": [
+		{
+			"pattern": "nexa.nexus",
+			"custom_domain": true
+		}
+	],
 	"assets": {
 		// Unknown paths like /live/abc123 load the React app.
 		"not_found_handling": "single-page-application",

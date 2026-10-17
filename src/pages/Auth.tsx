@@ -126,7 +126,7 @@ export function Register() {
           <div className="field">
             <label htmlFor="slug">Team link</label>
             <div className="input-prefix">
-              <span>paqueuekame/</span>
+              <span>nexa/</span>
               <input
                 id="slug"
                 className="input"

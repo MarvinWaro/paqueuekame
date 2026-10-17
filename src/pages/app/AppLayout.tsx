@@ -1,23 +1,25 @@
 import type { ReactNode } from "react";
+import { courtColorsOf } from "../../../shared/courtThemes";
 import type { Me } from "../../../shared/types";
 import { BrandMark } from "../../components/Brand";
 import { Icon, type IconName } from "../../components/Icon";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { api } from "../../lib/api";
-import { Link, navigate, useSearch } from "../../lib/router";
+import { useCourtColors } from "../../lib/courtTheme";
+import { Link, navigate } from "../../lib/router";
 import { useApi } from "../../lib/useApi";
 
 const NAV: { to: string; label: string; icon: IconName; match: string }[] = [
   { to: "/app", label: "Courts", icon: "court", match: "/app/sessions" },
   { to: "/app/players", label: "Players", icon: "people", match: "/app/players" },
-  { to: "/app/sessions?history", label: "History", icon: "calendar", match: "history" },
+  { to: "/app/club", label: "Club", icon: "trophy", match: "/app/club" },
   { to: "/app/team", label: "Team", icon: "gear", match: "/app/team" },
 ];
 
 export function AppLayout({ path, children }: { path: string; children: ReactNode }) {
   const { data: me } = useApi<Me>("/api/me");
-  const history = useSearch().has("history");
-  const current = (m: string) => (m === "history" ? history : !history && path === m);
+  useCourtColors(me && courtColorsOf(me.team.courtTheme, me.team.customColors));
+  const current = (m: string) => path === m;
 
   const logout = async () => {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -28,9 +30,9 @@ export function AppLayout({ path, children }: { path: string; children: ReactNod
     <div className="has-bottom-nav">
       <header className="topbar">
         <div className="wrap topbar-inner">
-          <Link to="/app" className="brand" aria-label="PaQueueKame">
+          <Link to="/app" className="brand" aria-label="NEXA">
             <BrandMark />
-            <span>{me?.team.name ?? "PaQueueKame"}</span>
+            <span>{me?.team.name ?? "NEXA"}</span>
           </Link>
           <nav className="nav" aria-label="Main">
             {NAV.map((n) => (

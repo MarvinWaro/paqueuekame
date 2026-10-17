@@ -1,3 +1,5 @@
+import { customColorsOf } from "../shared/courtThemes";
+import type { Team } from "../shared/types";
 import type { Env } from "./env";
 import { HttpError, getCookie, serializeCookie } from "./http";
 import { randomToken, sha256Hex } from "./ids";
@@ -73,7 +75,7 @@ export interface OrganizerRow {
 
 export interface Auth {
   organizer: OrganizerRow;
-  team: { id: string; slug: string; name: string; timezone: string };
+  team: Team & { timezone: string };
 }
 
 /** The logged-in organizer and their team. Throws 401 when the login is missing or expired. */
@@ -81,15 +83,35 @@ export async function requireOrganizer(env: Env, req: Request): Promise<Auth> {
   const token = getCookie(req, LOGIN_COOKIE);
   if (!token) throw new HttpError(401, "Log in to continue.", "unauthenticated");
   const row = await env.DB.prepare(
-    `SELECT o.*, t.slug AS t_slug, t.name AS t_name, t.timezone AS t_timezone
+    `SELECT o.*, t.slug AS t_slug, t.name AS t_name, t.timezone AS t_timezone, t.court_theme AS t_court_theme,
+       t.court_color AS t_court_color, t.kitchen_color AS t_kitchen_color
      FROM logins l
      JOIN organizers o ON o.id = l.organizer_id
      JOIN teams t ON t.id = o.team_id
      WHERE l.token_hash = ? AND l.expires_at > ?`,
   )
     .bind(await sha256Hex(token), Date.now())
-    .first<OrganizerRow & { t_slug: string; t_name: string; t_timezone: string }>();
+    .first<
+      OrganizerRow & {
+        t_slug: string;
+        t_name: string;
+        t_timezone: string;
+        t_court_theme: string;
+        t_court_color: string | null;
+        t_kitchen_color: string | null;
+      }
+    >();
   if (!row) throw new HttpError(401, "Your login ended. Log in again.", "unauthenticated");
-  const { t_slug, t_name, t_timezone, ...organizer } = row;
-  return { organizer, team: { id: organizer.team_id, slug: t_slug, name: t_name, timezone: t_timezone } };
+  const { t_slug, t_name, t_timezone, t_court_theme, t_court_color, t_kitchen_color, ...organizer } = row;
+  return {
+    organizer,
+    team: {
+      id: organizer.team_id,
+      slug: t_slug,
+      name: t_name,
+      timezone: t_timezone,
+      courtTheme: t_court_theme,
+      customColors: customColorsOf(t_court_color, t_kitchen_color),
+    },
+  };
 }

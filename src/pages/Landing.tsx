@@ -1,6 +1,8 @@
+import { type CSSProperties, useEffect } from "react";
 import type { Player } from "../../shared/types";
 import { Brand } from "../components/Brand";
 import { CourtDiagram } from "../components/Court";
+import { Icon, type IconName } from "../components/Icon";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { Link } from "../lib/router";
 
@@ -22,25 +24,90 @@ const DEMO = {
   ],
 };
 
+const POINTS: { icon: IconName; title: string; text: string }[] = [
+  {
+    icon: "shuffle",
+    title: "A fair line",
+    text: "Whoever waited longest plays next. After each game all four go to the back, and partners change so nobody gets stuck together.",
+  },
+  {
+    icon: "people",
+    title: "Live on every phone",
+    text: "Post one link in the group chat. Players see the courts, who's up next and their place in line, and get a buzz when it's their turn.",
+  },
+  {
+    icon: "qr",
+    title: "Check in at the court",
+    text: "Members tap I'm coming from the chat, then scan the QR when they arrive. Nobody holds a spot from home.",
+  },
+  {
+    icon: "check",
+    title: "Umpires score live",
+    text: "Hand a court to an umpire. They score rally by rally with side-out calls, and everyone sees 4-2-1 as it happens.",
+  },
+  {
+    icon: "trophy",
+    title: "A club with a memory",
+    text: "Standings for every session, plus leaderboards for the month and all time, at every place you play.",
+  },
+  {
+    icon: "gear",
+    title: "Free for your club",
+    text: "No app to install and no player accounts. Organizers log in; everyone else just taps their name.",
+  },
+];
+
+/** Fades elements marked .reveal up as they scroll into view, once. Shown at once for reduced motion. */
+function useReveal() {
+  useEffect(() => {
+    const items = document.querySelectorAll<HTMLElement>(".reveal");
+    const show = (el: Element) => el.classList.add("is-in");
+    if (!("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      items.forEach(show);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          show(e.target);
+          io.unobserve(e.target);
+        }),
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.15 },
+    );
+    items.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
 export function Landing() {
+  useReveal();
   return (
     <>
       <header className="topbar">
         <div className="wrap topbar-inner">
           <Brand />
           <ThemeToggle />
-          <Link to="/login" className="btn btn-ghost btn-sm">
+          <Link to="/login" className="btn btn-ghost btn-sm hide-narrow">
             Log in
+          </Link>
+          <Link to="/register" className="btn btn-primary btn-sm">
+            Get started
           </Link>
         </div>
       </header>
       <main className="wrap">
         <section className="hero">
           <div className="hero-copy">
-            <h1>No more paddle stack.</h1>
+            <span className="hero-badge">
+              <b>Free</b> For pickleball clubs that rent courts
+            </span>
+            <h1>
+              Open play, <span className="shine">minus the paddle stack.</span>
+            </h1>
             <p>
-              PaQueueKame runs open play for your team: who's on which court, who's up next, and how long until you play. Everyone
-              follows along on their phone.
+              NEXA runs the queue for your club: who's on which court, who's up next, and how long until you play. Everyone follows
+              along on their phone.
             </p>
             <div className="row row-wrap">
               <Link to="/register" className="btn btn-primary">
@@ -56,7 +123,7 @@ export function Landing() {
             <div className="upnext">
               <div className="upnext-head">
                 <h2>Up next</h2>
-                <span className="small">Court 3 is almost done</span>
+                <span className="small">Court 1 is almost done</span>
               </div>
               <div className="upnext-teams">
                 <div className="upnext-team">
@@ -98,7 +165,7 @@ export function Landing() {
                     </span>
                   </span>
                   <span className="line-side">
-                    <b>About {wait}</b>
+                    <b>~{wait}</b>
                   </span>
                 </li>
               ))}
@@ -106,23 +173,21 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="points">
-          <div className="point">
-            <h3>A fair line</h3>
-            <p>Whoever waited longest plays next. After each game all four go to the back, and partners change so nobody gets stuck together.</p>
-          </div>
-          <div className="point">
-            <h3>Everyone can see it</h3>
-            <p>Share one link in the group chat. Players check in with the QR code at the court and get an alert when they're up.</p>
-          </div>
-          <div className="point">
-            <h3>Free for your team</h3>
-            <p>No app to install and no player accounts. Organizers log in; everyone else just taps their name.</p>
-          </div>
+        <section className="points" aria-label="What NEXA does">
+          {POINTS.map((pt, i) => (
+            <div key={pt.title} className="point reveal" style={{ "--i": i % 3 } as CSSProperties}>
+              <Icon name={pt.icon} />
+              <h3>{pt.title}</h3>
+              <p>{pt.text}</p>
+            </div>
+          ))}
         </section>
       </main>
       <footer className="footer">
-        <div className="wrap">PaQueueKame, an open-play queue for pickleball teams.</div>
+        <div className="wrap row spread row-wrap">
+          <span>NEXA, the open-play queue for pickleball clubs.</span>
+          <Link to="/login">Organizer log in</Link>
+        </div>
       </footer>
     </>
   );
