@@ -16,7 +16,7 @@ How Ciel works:
 
 ## The project
 
-**NEXA** is a free open-play queue for a pickleball team (30+ players who rent courts). It replaces the paddle stack. The product name is NEXA everywhere people see it; the internal name `paqueuekame` stays for the Worker, the D1 database, the `pq_login` cookie and `pq:` storage keys, so data and deploys keep working. Don't rename those.
+**NEXA** is a free open-play queue for a pickleball team (30+ players who rent courts). It replaces the paddle stack. The product name is NEXA everywhere people see it. Live at **https://nexa.nexus** (Cloudflare Registrar), served by the Worker `nexa` (`wrangler.jsonc`: `name`, plus `routes` with `custom_domain: true`, so `npm run deploy` attaches the domain). The internal name `paqueuekame` stays for the D1 database (Cloudflare can't rename databases, and the npm scripts use it), the `pq_login` cookie and `pq:` storage keys. Don't rename those.
 
 - Organizer logs in, keeps a roster, starts a session with the number of courts booked, checks players in.
 - The app keeps one **Up Next** game ready. The organizer taps *Start on Court N* when a court is free, then records the winner (score optional).

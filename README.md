@@ -1,6 +1,6 @@
 # NEXA
 
-(Internal and infrastructure name: `paqueuekame`, used for the Worker, the D1 database, cookies and storage keys.)
+Live at **https://nexa.nexus** (Cloudflare Worker `nexa`). The D1 database, cookies and storage keys keep the internal name `paqueuekame`.
 
 An open-play queue for a pickleball team. The organizer runs the courts from a phone; players follow the line on theirs.
 

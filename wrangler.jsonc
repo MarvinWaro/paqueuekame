@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "paqueuekame",
+	"name": "nexa",
 	"main": "./worker/index.ts",
 	"compatibility_date": "2026-04-01",
 	// The live address. `npm run deploy` attaches the domain and sets up HTTPS; the workers.dev address stays as a backup.
