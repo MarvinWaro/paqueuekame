@@ -4,6 +4,7 @@ import { ToastProvider } from "./components/Toast";
 import { Link, matchPath, usePath } from "./lib/router";
 import { Login, Register } from "./pages/Auth";
 import { Landing } from "./pages/Landing";
+import { Privacy, Terms } from "./pages/Legal";
 import { Live } from "./pages/Live";
 import { SelfCheckin } from "./pages/SelfCheckin";
 import { Umpire } from "./pages/Umpire";
@@ -21,6 +22,8 @@ function Routes() {
   if (path === "/") return <Landing />;
   if (path === "/login") return <Login />;
   if (path === "/register") return <Register />;
+  if (path === "/terms") return <Terms />;
+  if (path === "/privacy") return <Privacy />;
   if (path === "/app") return <AppHome />;
 
   const live = matchPath("/live/:token", path);

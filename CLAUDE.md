@@ -38,7 +38,7 @@ Team on Marvin's side: "Mentally Pickled". Most use is on phones at the court, s
 
 ## Stack
 
-React 19 + Vite 7 + TypeScript, plain CSS, a tiny custom router. One Cloudflare Worker with a small router, Zod and raw SQL. Cloudflare D1. Few dependencies (react, react-dom, zod, qrcode); ask before adding one.
+React 19 + Vite 7 + TypeScript, plain CSS, a tiny custom router. One Cloudflare Worker with a small router, Zod and raw SQL. Cloudflare D1. Few dependencies (react, react-dom, zod, qrcode, driver.js for the organizer tour, loaded only when a tour runs); ask before adding one.
 
 ## Commands
 
@@ -49,6 +49,9 @@ npm run typecheck
 npm run build
 npm run db:migrate:remote   # before merging a new migration to main
 npx wrangler d1 execute paqueuekame --remote --command "SELECT ..."
+npm run db:fresh:local      # wipe the local database and re-run migrations (stop npm run dev first)
+npx wrangler d1 export paqueuekame --remote --output <file>.sql            # back up the live data
+npx wrangler d1 execute paqueuekame --remote --file scripts/wipe-data.sql  # delete ALL live data, keep tables
 ```
 
 ## Layout
@@ -83,6 +86,13 @@ src/pages/app/*            organizer screens; SessionControl.tsx is the court sc
 src/pages/Live.tsx         player live board
 src/pages/SelfCheckin.tsx  QR check-in
 src/pages/Umpire.tsx       umpire scoring screen
+src/pages/Landing.tsx      landing: hero, points, screenshots, Pricing (every plan ₱0; feature lists must stay true), FAQ, call to action, SiteFooter
+src/pages/Legal.tsx        /terms and /privacy (plain-English drafts; keep in sync with what the app stores)
+src/content/site.ts        landing copy Marvin edits: CONTACT_EMAIL, FAQ (testimonials and the numbers strip were removed for now)
+src/lib/tour.ts            organizer tours (driver.js): "start" on Sessions, "court" on the court screen; targets are data-tour attributes
+src/lib/boot.ts            keeps the index.html splash up until the first screen has data (<Loading /> holds it)
+public/assets/img/shots/   landing screenshots (WebP, light and dark), made from a local demo club
+public/assets/img/mascot/  mascot layers (body, arm, head, pupils, blink; 400x369 WebP, cropped from design/nexa-mascot/ originals). Keep moves tiny: the layers come from one flat drawing and gaps show past ~2px / 2.5deg
 src/components/NamePicker.tsx  find-your-name list + guest (QR check-in and I'm coming)
 src/pages/Results.tsx      Standings (medals, tie note), Podium, SessionSummary, GameLog, share text
 src/components/Court.tsx   the top-down court diagram
@@ -117,7 +127,7 @@ Ranked by wins, then win rate, then opponent strength (average win rate of the o
 
 ## Design language
 
-Modern, premium, minimalist: shadcn/Vercel-style, built as our own CSS design system in `src/styles.css` (no Tailwind, no component library). Zinc neutrals, hairline borders, soft radii (`--radius*`), quiet shadows; primary buttons are monochrome (ink on light, white on dark). One signal-orange accent (`--accent`, with `--accent-ink` for text on it and `--accent-soft`/`--accent-line` for tints; `--ball` is an alias) used only for Up Next, "you", the live pill, the serving team, and small badges. Geist for text and big numbers (tabular figures, `--font-num`), Geist Mono only for small technical numbers like timers and waits (its zero is slashed, so never for scores). Theme follows the phone, with a toggle (`data-theme` on `<html>`). Teams pick court colors in Team settings (`--tc-court`, `--tc-kitchen`); `--court` and `--kitchen` derive from them. The court diagram is the signature element: players stand in service boxes, the kitchen sits beside the net. The logo is Marvin's NEXA mark (an N with an orange corner) in `public/assets/img`: his source files plus trimmed web copies (`nexa-icon-*`, `nexa-wordmark-*`, `favicon-*`, `apple-touch-icon`), each with a light- and dark-theme version shown by the `.for-light`/`.for-dark` classes (`src/components/Brand.tsx`). Avoid anything that looks AI-made: no gradients, no glassmorphism or blur, no glow, no violet, no all-caps labels. Motion is restrained: decorative animation lives only on the landing page (the shine sweep `.shine` on the headline phrase, and feature cards that fade up once on scroll and lift on hover); keep app screens still apart from the live dot and small feedback, and honor `prefers-reduced-motion`.
+Modern, premium, minimalist: shadcn/Vercel-style, built as our own CSS design system in `src/styles.css` (no Tailwind, no component library). Zinc neutrals, hairline borders, soft radii (`--radius*`), quiet shadows; primary buttons are monochrome (ink on light, white on dark). One signal-orange accent (`--accent`, with `--accent-ink` for text on it and `--accent-soft`/`--accent-line` for tints; `--ball` is an alias) used only for Up Next, "you", the live pill, the serving team, and small badges. Geist for text and big numbers (tabular figures, `--font-num`), Geist Mono only for small technical numbers like timers and waits (its zero is slashed, so never for scores). Theme follows the phone, with a toggle (`data-theme` on `<html>`). On phones the main tabs are a floating bar (solid, soft shadow, no blur) with an ink pill that slides to the active tab. Teams pick court colors in Team settings (`--tc-court`, `--tc-kitchen`); `--court` and `--kitchen` derive from them. The court diagram is the signature element: players stand in service boxes, the kitchen sits beside the net. The logo is Marvin's NEXA mark (an N with an orange corner) in `public/assets/img`: his source files plus trimmed web copies (`nexa-icon-*`, `nexa-wordmark-*`, `favicon-*`, `apple-touch-icon`), each with a light- and dark-theme version shown by the `.for-light`/`.for-dark` classes (`src/components/Brand.tsx`). Avoid anything that looks AI-made: no gradients, no glassmorphism or blur, no glow, no violet, no all-caps labels. Motion is restrained: decorative animation lives only on the landing page (the shine sweep `.shine` on the headline phrase, feature cards that fade up once on scroll and lift on hover, a pickleball cursor with a fading trail for mouse users, `PickleCursor.tsx`, the player mascot above the headline, `PlayerMascot.tsx`, and a fixed dot-grid background whose dots turn orange around the mouse, `DotGrid.tsx`; the dot grid and the ball cursor also run on log in, register, Terms and Privacy); keep app screens still apart from the live dot and small feedback, and honor `prefers-reduced-motion`.
 
 ## Ideas on the roadmap (ask before starting)
 

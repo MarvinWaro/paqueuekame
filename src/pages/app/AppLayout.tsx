@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { courtColorsOf } from "../../../shared/courtThemes";
 import type { Me } from "../../../shared/types";
 import { BrandMark } from "../../components/Brand";
@@ -20,6 +20,7 @@ export function AppLayout({ path, children }: { path: string; children: ReactNod
   const { data: me } = useApi<Me>("/api/me");
   useCourtColors(me && courtColorsOf(me.team.courtTheme, me.team.customColors));
   const current = (m: string) => path === m;
+  const active = NAV.findIndex((n) => current(n.match));
 
   const logout = async () => {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -36,7 +37,7 @@ export function AppLayout({ path, children }: { path: string; children: ReactNod
           </Link>
           <nav className="nav" aria-label="Main">
             {NAV.map((n) => (
-              <Link key={n.label} to={n.to} aria-current={current(n.match) ? "page" : undefined}>
+              <Link key={n.label} to={n.to} aria-current={current(n.match) ? "page" : undefined} data-tour={`nav-${n.label.toLowerCase()}`}>
                 {n.label}
               </Link>
             ))}
@@ -48,9 +49,13 @@ export function AppLayout({ path, children }: { path: string; children: ReactNod
         </div>
       </header>
       <main className="wrap">{children}</main>
-      <nav className="bottom-nav" aria-label="Main">
+      <nav
+        className={active < 0 ? "bottom-nav no-active" : "bottom-nav"}
+        aria-label="Main"
+        style={{ "--i": active } as CSSProperties}
+      >
         {NAV.map((n) => (
-          <Link key={n.label} to={n.to} aria-current={current(n.match) ? "page" : undefined}>
+          <Link key={n.label} to={n.to} aria-current={current(n.match) ? "page" : undefined} data-tour={`nav-${n.label.toLowerCase()}`}>
             <Icon name={n.icon} />
             {n.label}
           </Link>

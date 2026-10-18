@@ -16,8 +16,56 @@ import { shareText } from "../../lib/share";
 import { useApi, useNow } from "../../lib/useApi";
 import { GameLog, Podium, SessionSummary, Standings, standingsText } from "../Results";
 import { Loading } from "../../components/Loading";
+import type { DriveStep } from "driver.js";
+import { useTour } from "../../lib/tour";
 
 type Tab = "courts" | "line" | "players" | "results";
+
+/** First time on a court screen: the few controls an organizer needs. */
+const courtTour = (): DriveStep[] => [
+  {
+    element: '[data-tour="invite"]',
+    popover: {
+      title: "Invite to join",
+      description: "Post this link in your group chat. Members tap I'm coming and follow the courts live on their phones.",
+    },
+  },
+  {
+    element: '[data-tour="qr"]',
+    popover: {
+      title: "Check-in QR",
+      description: "Show or print this at the court. Players scan it when they arrive to join the back of the line.",
+    },
+  },
+  {
+    element: '[data-tour="tab-players"]',
+    popover: {
+      title: "Check players in",
+      description: "Tick names, or Select all. The starting order is shuffled, so the alphabet doesn't decide who plays first.",
+    },
+  },
+  {
+    element: '[data-tour="upnext"]',
+    popover: {
+      title: "Up next",
+      description: "NEXA keeps the next game ready from the line. Tap a name to swap, Shuffle for new pairs, then start it on a free court.",
+    },
+  },
+  {
+    element: '[data-tour="courts"] > :first-child',
+    popover: {
+      title: "Courts",
+      description: "When a game ends, tap who won. A score is optional. Tap a name on court to swap a player.",
+    },
+  },
+  {
+    element: '[data-tour="settings"]',
+    popover: {
+      title: "Session settings",
+      description: "Change the matching mode or courts, add umpires who score from their phone, and end the session.",
+    },
+  },
+];
 type Act = (path: string, body?: unknown, done?: string, method?: "POST" | "PATCH" | "DELETE") => Promise<boolean>;
 
 export function SessionControl({ id }: { id: string }) {
@@ -29,6 +77,7 @@ export function SessionControl({ id }: { id: string }) {
   // Use the server's clock for game timers, in case this phone's clock is off.
   const skew = useMemo(() => (state ? state.serverTime - Date.now() : 0), [state]);
   const now = useNow(1000) + skew;
+  useTour("court", courtTour, state?.session.status === "live");
 
   const act: Act = async (path, body, done, method = "POST") => {
     setBusy(true);
@@ -89,7 +138,7 @@ export function SessionControl({ id }: { id: string }) {
             ["results", "Results", state.results.length],
           ] as [Tab, string, number | null][]
         ).map(([key, label, count]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
+          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} data-tour={`tab-${key}`}>
             {label}
             {count !== null && <span className="tab-count">{count}</span>}
           </button>
@@ -100,7 +149,7 @@ export function SessionControl({ id }: { id: string }) {
         <div className="board-grid two">
           <div className="stack">
             <UpNext state={state} act={act} busy={busy} />
-            <div className="courts">
+            <div className="courts" data-tour="courts">
               {state.courts.map((c) => (
                 <CourtControl
                   key={c.court}
@@ -186,7 +235,14 @@ function SessionHeader({
           </span>
           <h1>{s.title}</h1>
         </div>
-        <button type="button" className="icon-btn" onClick={() => setSheet("settings")} aria-label="Session settings" title="Session settings">
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => setSheet("settings")}
+          aria-label="Session settings"
+          title="Session settings"
+          data-tour="settings"
+        >
           <Icon name="gear" />
         </button>
       </div>
@@ -204,10 +260,10 @@ function SessionHeader({
         )}
       </div>
       <div className="row row-wrap">
-        <button type="button" className="btn btn-sm" onClick={invite}>
+        <button type="button" className="btn btn-sm" onClick={invite} data-tour="invite">
           <Icon name="share" /> Invite to join
         </button>
-        <button type="button" className="btn btn-sm" onClick={() => setSheet("qr")}>
+        <button type="button" className="btn btn-sm" onClick={() => setSheet("qr")} data-tour="qr">
           <Icon name="qr" /> Check-in QR
         </button>
       </div>
@@ -316,7 +372,7 @@ function UpNext({ state, act, busy }: { state: SessionState; act: Act; busy: boo
   if (!next) {
     const waiting = state.queue.length;
     return (
-      <section className="upnext is-empty" aria-label="Up next">
+      <section className="upnext is-empty" aria-label="Up next" data-tour="upnext">
         <div className="upnext-head">
           <h2>Up next</h2>
         </div>
@@ -336,7 +392,7 @@ function UpNext({ state, act, busy }: { state: SessionState; act: Act; busy: boo
   );
 
   return (
-    <section className="upnext" aria-label="Up next">
+    <section className="upnext" aria-label="Up next" data-tour="upnext">
       <div className="upnext-head">
         <h2>Up next</h2>
         <span className="small">Tap a name to swap</span>

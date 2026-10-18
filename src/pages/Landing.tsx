@@ -1,9 +1,13 @@
-import { type CSSProperties, useEffect } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 import type { Player } from "../../shared/types";
 import { Brand } from "../components/Brand";
 import { CourtDiagram } from "../components/Court";
+import { DotGrid } from "../components/DotGrid";
 import { Icon, type IconName } from "../components/Icon";
+import { PickleCursor } from "../components/PickleCursor";
+import { PlayerMascot } from "../components/PlayerMascot";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { CONTACT_EMAIL, FAQ } from "../content/site";
 import { Link } from "../lib/router";
 
 const p = (id: string, name: string): Player => ({ id, name, skill: null, isGuest: false });
@@ -57,7 +61,126 @@ const POINTS: { icon: IconName; title: string; text: string }[] = [
   },
 ];
 
+/** Every plan is free; the pricing section says so with a straight face. Features must stay true. */
+const PLANS: { name: string; who: string; note: string; features: string[]; cta?: string; featured?: boolean }[] = [
+  {
+    name: "Player",
+    who: "Everyone in the line.",
+    note: "No account. No app. No catch.",
+    features: [
+      "Live courts, Up Next and your place in line",
+      "A buzz on your phone when you're up",
+      "I'm coming from the group chat, QR check-in at the court",
+      "Standings and your own stats after every game",
+    ],
+  },
+  {
+    name: "Organizer",
+    who: "The one running the courts.",
+    note: "Still zero. We checked.",
+    features: [
+      "Up Next always ready, all four off after each game",
+      "Balanced, social, skill groups or winners vs winners",
+      "Bulk check-in, results with scores, Undo",
+      "Session summary with podium, ready to share",
+    ],
+    cta: "Create your team",
+    featured: true,
+  },
+  {
+    name: "Club",
+    who: "Your whole crew, every week.",
+    note: "There's no billing page to find.",
+    features: [
+      "Umpires scoring rally by rally on their phones",
+      "Leaderboards for the month, all time and each place",
+      "More organizers, saved places, your own court colors",
+      "No ads, and your players' data is never sold",
+    ],
+    cta: "Create your team",
+  },
+];
+
+const TERMS = [12, 6, 3, 1];
+
+const SHOTS: { file: string; title: string; text: string }[] = [
+  { file: "court", title: "Run the courts", text: "Up Next is always ready. Start it on a free court, then tap who won." },
+  { file: "live", title: "Players follow along", text: "Courts, the line and standings on every phone, with a buzz when they're up." },
+  { file: "ump", title: "Umpires score live", text: "Rally by rally with side-out calls. The score shows everywhere at once." },
+];
+
 /** Fades elements marked .reveal up as they scroll into view, once. Shown at once for reduced motion. */
+/** Three plans, one price. The billing switch works; the total never changes. */
+function Pricing() {
+  const [months, setMonths] = useState(12);
+  return (
+    <section className="landing-section" aria-labelledby="pricing-title">
+      <div className="landing-head">
+        <h2 id="pricing-title">Pricing</h2>
+        <p>Pick a plan. Take your time, they all cost the same.</p>
+        <div className="terms" role="radiogroup" aria-label="Billing period">
+          {TERMS.map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={months === m} onClick={() => setMonths(m)}>
+              {m} mo
+              <span>save 0%</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="plans">
+        {PLANS.map((plan, i) => (
+          <article key={plan.name} className={`plan reveal${plan.featured ? " is-featured" : ""}`} style={{ "--i": i } as CSSProperties}>
+            <div className="plan-head">
+              <h3>{plan.name}</h3>
+              {plan.featured && <span className="pill">Most popular</span>}
+            </div>
+            <p className="plan-who">{plan.who}</p>
+            <p className="plan-price">
+              <b>₱0</b>
+              <span>/ forever</span>
+            </p>
+            <p className="plan-bill">
+              Billed ₱0 every {months === 1 ? "month" : `${months} months`}. {plan.note}
+            </p>
+            <ul>
+              {plan.features.map((f) => (
+                <li key={f}>
+                  <Icon name="check" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            {plan.cta ? (
+              <Link to="/register" className={`btn btn-block ${plan.featured ? "btn-primary" : ""}`}>
+                {plan.cta}
+              </Link>
+            ) : (
+              <p className="plan-none">Nothing to sign up for. Just tap the link.</p>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Footer for the public pages. */
+export function SiteFooter() {
+  return (
+    <footer className="footer">
+      <div className="wrap footer-inner">
+        <span>NEXA, the open-play queue for pickleball clubs.</span>
+        <nav className="footer-links" aria-label="Site">
+          <Link to="/login">Organizer log in</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/privacy">Privacy</Link>
+          {CONTACT_EMAIL && <a href={`mailto:${CONTACT_EMAIL}`}>Contact</a>}
+        </nav>
+      </div>
+    </footer>
+  );
+}
+
 function useReveal() {
   useEffect(() => {
     const items = document.querySelectorAll<HTMLElement>(".reveal");
@@ -84,6 +207,7 @@ export function Landing() {
   useReveal();
   return (
     <>
+      <DotGrid />
       <header className="topbar">
         <div className="wrap topbar-inner">
           <Brand />
@@ -99,6 +223,7 @@ export function Landing() {
       <main className="wrap">
         <section className="hero">
           <div className="hero-copy">
+            <PlayerMascot />
             <span className="hero-badge">
               <b>Free</b> For pickleball clubs that rent courts
             </span>
@@ -182,13 +307,70 @@ export function Landing() {
             </div>
           ))}
         </section>
+
+        <section className="landing-section" aria-labelledby="shots-title">
+          <div className="landing-head">
+            <h2 id="shots-title">See NEXA in action</h2>
+            <p>One screen for organizers. A live view for players. A scorepad for umpires.</p>
+            <p className="small hide-wide">Swipe to see all three.</p>
+          </div>
+          <div className="shots">
+            {SHOTS.map((s, i) => (
+              <figure key={s.file} className="shot reveal" style={{ "--i": i } as CSSProperties}>
+                <div className="shot-frame">
+                  {(["light", "dark"] as const).map((theme) => (
+                    <img
+                      key={theme}
+                      className={`for-${theme}`}
+                      src={`/assets/img/shots/${s.file}-${theme}.webp`}
+                      alt={`${s.title}: NEXA on a phone`}
+                      width={390}
+                      height={844}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ))}
+                </div>
+                <figcaption>
+                  <b>
+                    {i + 1}. {s.title}
+                  </b>
+                  <span>{s.text}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+
+        <Pricing />
+
+        <section className="landing-section faq" aria-labelledby="faq-title">
+          <div className="landing-head">
+            <h2 id="faq-title">Questions</h2>
+          </div>
+          <div className="faq-list">
+            {FAQ.map((f) => (
+              <details key={f.q}>
+                <summary>
+                  {f.q}
+                  <Icon name="chevron" />
+                </summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        <section className="cta">
+          <h2>Less queue-keeping. More pickleball.</h2>
+          <p>Free for your club. Set up in a minute, add players as they arrive.</p>
+          <Link to="/register" className="btn btn-primary">
+            Create your team
+          </Link>
+        </section>
       </main>
-      <footer className="footer">
-        <div className="wrap row spread row-wrap">
-          <span>NEXA, the open-play queue for pickleball clubs.</span>
-          <Link to="/login">Organizer log in</Link>
-        </div>
-      </footer>
+      <SiteFooter />
+      <PickleCursor />
     </>
   );
 }

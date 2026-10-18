@@ -7,12 +7,15 @@ import { api, errorMessage } from "../../lib/api";
 import { dateLabel, defaultSessionTitle, plural, timeLabel } from "../../lib/format";
 import { Link, navigate } from "../../lib/router";
 import { useApi } from "../../lib/useApi";
+import type { DriveStep } from "driver.js";
+import { useTour, visible } from "../../lib/tour";
 
 export function Sessions() {
   const { data: me } = useApi<Me>("/api/me");
   const { data: sessions, error } = useApi<SessionSummary[]>("/api/sessions");
   const live = sessions?.find((s) => s.status === "live");
   const past = sessions?.filter((s) => s.status === "ended") ?? [];
+  useTour("start", startTour, !!me && !!sessions && !live);
 
   return (
     <div className="page">
@@ -54,6 +57,44 @@ export function Sessions() {
     </div>
   );
 }
+
+/** First visit: where things live, before the first session. */
+const startTour = (): DriveStep[] => [
+  {
+    popover: {
+      title: "Welcome to NEXA",
+      description: "A one-minute tour of how open play runs here. You can replay it any time from the Team tab.",
+    },
+  },
+  {
+    element: visible('[data-tour="nav-players"]'),
+    popover: {
+      title: "Your roster",
+      description: "Add your club's players once. Paste a whole list from the group chat and set skill levels.",
+    },
+  },
+  {
+    element: '[data-tour="start-button"]',
+    popover: {
+      title: "Start a session",
+      description: "Name it, pick the place and how many courts you booked, then tap Start session. Next you check players in.",
+    },
+  },
+  {
+    element: visible('[data-tour="nav-club"]'),
+    popover: {
+      title: "Club",
+      description: "Leaderboards across sessions: most wins, best win rate and most active, by month or at one place.",
+    },
+  },
+  {
+    element: visible('[data-tour="nav-team"]'),
+    popover: {
+      title: "Team settings",
+      description: "Court colors, other organizers, and this tour if you want it again.",
+    },
+  },
+];
 
 /** Finished sessions, newest first. */
 export function SessionList({ sessions, empty }: { sessions: SessionSummary[]; empty?: string }) {
@@ -176,7 +217,7 @@ function StartForm() {
           {error}
         </p>
       )}
-      <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
+      <button className="btn btn-primary btn-block" type="submit" disabled={busy} data-tour="start-button">
         {busy ? "Starting…" : "Start session"}
       </button>
     </form>

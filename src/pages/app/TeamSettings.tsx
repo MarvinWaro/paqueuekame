@@ -18,6 +18,8 @@ import { useToast } from "../../components/Toast";
 import { applyCourtColors } from "../../lib/courtTheme";
 import { api, errorMessage } from "../../lib/api";
 import { useApi } from "../../lib/useApi";
+import { navigate } from "../../lib/router";
+import { resetTours } from "../../lib/tour";
 
 export function TeamSettings() {
   const { data: me, setData: setMe } = useApi<Me>("/api/me");
@@ -54,9 +56,21 @@ export function TeamSettings() {
           <AddOrganizer onAdded={(o) => setOrganizers((list) => [...(list ?? []), o])} />
         </section>
         <ChangePassword />
+        <section className="panel stack">
+          <h2>Tour</h2>
+          <p className="muted">A one-minute walk through starting a session and running the courts.</p>
+          <button type="button" className="btn" onClick={replayTour}>
+            Take the tour again
+          </button>
+        </section>
       </div>
     </div>
   );
+}
+
+function replayTour() {
+  resetTours();
+  navigate("/app/sessions");
 }
 
 function TeamName({ me, onSaved }: { me: Me; onSaved: (name: string) => void }) {

@@ -578,42 +578,78 @@ textarea.input {
   .nav {
     display: none;
   }
+  /* Floating tab bar: a solid rounded bar above the screen edge; an ink pill slides to the active tab
+     (--i is its position, set in AppLayout). */
   .bottom-nav {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     position: fixed;
-    inset: auto 0 0 0;
+    left: 0;
+    right: 0;
+    bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 25;
-    background: var(--bg);
-    border-top: 1px solid var(--line);
-    padding: 6px 8px env(safe-area-inset-bottom);
+    width: calc(100% - 24px);
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 6px;
+    border-radius: 22px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(9, 9, 11, 0.06), 0 12px 32px -12px rgba(9, 9, 11, 0.3);
+  }
+  :root[data-theme="dark"] .bottom-nav {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px -12px rgba(0, 0, 0, 0.9);
+  }
+  .bottom-nav::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / 4);
+    border-radius: 16px;
+    background: var(--primary);
+    transform: translateX(calc(var(--i, 0) * 100%));
+    transition: transform 0.35s cubic-bezier(0.3, 0.7, 0.2, 1);
+  }
+  .bottom-nav.no-active::before {
+    display: none;
   }
   .bottom-nav a {
+    position: relative;
     display: grid;
-    justify-items: center;
-    gap: 3px;
-    padding: 4px 4px 8px;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    min-height: 52px;
+    border-radius: 16px;
     font-size: 0.6875rem;
-    font-weight: 500;
+    font-weight: 550;
     text-decoration: none;
     color: var(--muted);
+    transition: color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   .bottom-nav a .icon {
-    width: 52px;
-    height: 30px;
-    padding: 5px 0;
-    border-radius: 99px;
-    transition: background-color 0.15s ease;
+    width: 22px;
+    height: 22px;
   }
   .bottom-nav a[aria-current="page"] {
-    color: var(--ink);
+    color: var(--primary-ink);
     font-weight: 600;
   }
-  .bottom-nav a[aria-current="page"] .icon {
-    background: var(--surface-3);
+  .bottom-nav a:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .has-bottom-nav {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 719px) and (prefers-reduced-motion: reduce) {
+  .bottom-nav::before,
+  .bottom-nav a {
+    transition: none;
   }
 }
 
@@ -1889,6 +1925,336 @@ button.line-item:hover {
   color: var(--muted);
   font-size: 0.8125rem;
 }
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.footer-links a:hover {
+  color: var(--ink);
+}
+
+/* Landing: screenshots, FAQ, closing call to action */
+.landing-section {
+  padding: 8px 0 64px;
+}
+.landing-head {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+  margin-bottom: 24px;
+}
+.landing-head h2 {
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  letter-spacing: -0.035em;
+}
+.landing-head p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 46ch;
+}
+/* Phones: swipe through the screenshots; wide screens: three across. */
+.shots {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(78%, 320px);
+  gap: 12px;
+  margin: 0 -16px;
+  padding: 0 16px 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 16px;
+  scrollbar-width: none;
+}
+.shots::-webkit-scrollbar {
+  display: none;
+}
+.shots .shot {
+  scroll-snap-align: start;
+}
+@media (min-width: 800px) {
+  .hide-wide {
+    display: none;
+  }
+  .shots {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+.shot {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+  padding: 12px 12px 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.shot-frame {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  aspect-ratio: 390 / 844;
+}
+.shot-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.shot figcaption {
+  display: grid;
+  gap: 2px;
+  padding: 0 4px;
+}
+.shot figcaption span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.faq-list {
+  max-width: 720px;
+  margin: 0 auto;
+  border-top: 1px solid var(--line);
+}
+.faq-list details {
+  border-bottom: 1px solid var(--line);
+}
+.faq-list summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 8px 0;
+  font-weight: 550;
+  cursor: pointer;
+  list-style: none;
+}
+.faq-list summary::-webkit-details-marker {
+  display: none;
+}
+.faq-list summary .icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+.faq-list details[open] summary .icon {
+  transform: rotate(90deg);
+}
+.faq-list summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.faq-list details p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  max-width: 62ch;
+}
+/* Pricing: three plans, all free */
+.terms {
+  display: inline-grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.terms button {
+  display: grid;
+  gap: 1px;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.terms button span {
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+.terms button[aria-checked="true"] {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+.terms button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.plans {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 900px) {
+  .plans {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: stretch;
+  }
+}
+.plan {
+  display: grid;
+  grid-template-rows: auto auto auto auto 1fr auto;
+  gap: 8px;
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.plan.is-featured {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.plan-head h3 {
+  font-size: 1.125rem;
+}
+.plan.is-featured .pill {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.plan-who,
+.plan-bill,
+.plan-none {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+.plan-price b {
+  font-family: var(--font-num);
+  font-size: 3rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.plan-price span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.plan ul {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  margin: 12px 0 8px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+.plan li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+.plan li .icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--accent-text);
+}
+.plan-none {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .terms button {
+    transition: none;
+  }
+}
+
+.cta {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px 0 72px;
+  text-align: center;
+}
+.cta h2 {
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  letter-spacing: -0.035em;
+}
+.cta p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .faq-list summary .icon {
+    transition: none;
+  }
+}
+
+/* Terms and Privacy */
+.legal {
+  max-width: 680px;
+  padding: 32px 0 64px;
+}
+.legal h1 {
+  font-size: clamp(1.75rem, 7vw, 2.25rem);
+  letter-spacing: -0.04em;
+  margin-bottom: 4px;
+}
+.legal h2 {
+  font-size: 1.125rem;
+  margin: 28px 0 8px;
+}
+.legal p,
+.legal li {
+  color: var(--muted);
+  line-height: 1.65;
+}
+.legal p {
+  margin: 0 0 12px;
+}
+.legal ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.legal strong {
+  color: var(--ink);
+  font-weight: 600;
+}
 
 .roster-add {
   display: grid;
@@ -2626,4 +2992,272 @@ button.standing:active {
   color: var(--muted);
   font-size: 0.8125rem;
   padding-left: 28px;
+}
+
+/* Product tour (driver.js, loaded only when a tour runs): restyled as a NEXA card. The doubled class
+   beats the library's own CSS, which loads after this file. */
+.driver-popover.nexa-tour {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px 16px 14px;
+  min-width: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-width: none;
+}
+.nexa-tour .driver-popover-title {
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  padding-right: 32px;
+}
+.nexa-tour .driver-popover-description {
+  font-family: var(--font);
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.nexa-tour .driver-popover-close-btn {
+  width: 44px;
+  height: 44px;
+  color: var(--muted);
+  font-size: 20px;
+}
+.nexa-tour .driver-popover-close-btn:hover,
+.nexa-tour .driver-popover-close-btn:focus-visible {
+  color: var(--ink);
+}
+.nexa-tour .driver-popover-footer {
+  margin-top: 16px;
+  gap: 8px;
+}
+.nexa-tour .driver-popover-progress-text {
+  font-family: var(--font-mono);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.nexa-tour .driver-popover-navigation-btns {
+  gap: 8px;
+}
+.nexa-tour .driver-popover-footer-btn {
+  font-family: var(--font);
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 550;
+  text-shadow: none;
+  display: inline-flex;
+  align-items: center;
+}
+.nexa-tour .driver-popover-navigation-btns button + button {
+  margin-left: 0;
+}
+.nexa-tour .driver-popover-next-btn {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+}
+.nexa-tour .driver-popover-footer-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.nexa-tour .driver-popover-footer .driver-popover-btn-disabled {
+  display: none;
+}
+.nexa-tour .driver-popover-arrow-side-left {
+  border-left-color: var(--surface);
+}
+.nexa-tour .driver-popover-arrow-side-right {
+  border-right-color: var(--surface);
+}
+.nexa-tour .driver-popover-arrow-side-top {
+  border-top-color: var(--surface);
+}
+.nexa-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--surface);
+}
+
+/* Pickleball cursor (landing page, desktop only; see PickleCursor.tsx). Shown only once the mouse
+   moves, and the normal cursor returns whenever it's hidden. */
+.pc {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.pc-on .pc {
+  opacity: 1;
+}
+.pc-on,
+.pc-on * {
+  cursor: none !important;
+}
+.pc-on input,
+.pc-on textarea,
+.pc-on select {
+  cursor: auto !important;
+}
+.pc-on .pc.is-text {
+  opacity: 0;
+}
+.pc-ball,
+.pc-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.pc-ball svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.pc.is-hover .pc-ball svg {
+  transform: scale(1.45);
+}
+.pc.is-down .pc-ball svg {
+  transform: scale(0.8);
+}
+.pc-shell {
+  fill: #c8e43a; /* optic pickleball green */
+  stroke: rgba(9, 9, 11, 0.35);
+  stroke-width: 1;
+}
+.pc-hole {
+  fill: #7f9a14;
+}
+.pc-dot {
+  width: calc(10px - var(--i) * 0.7px);
+  height: calc(10px - var(--i) * 0.7px);
+  margin: calc(var(--i) * 0.35px - 5px) 0 0 calc(var(--i) * 0.35px - 5px);
+  border-radius: 50%;
+  background: #c8e43a;
+  opacity: calc(0.55 - var(--i) * 0.05);
+}
+
+/* Landing mascot (PlayerMascot.tsx): desktop with a mouse only; elsewhere hidden, so its images never
+   load. All layers share one box; pivots are fractions of the 400x369 layer canvas. */
+.mascot {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mascot {
+    display: block;
+    width: 200px;
+    margin: -16px 0 4px -12px;
+    /* soft fade where the drawing is cut at the waist */
+    -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent);
+    mask-image: linear-gradient(to bottom, #000 80%, transparent);
+  }
+}
+.mascot-stage {
+  position: relative;
+  aspect-ratio: 400 / 369;
+  cursor: pointer;
+}
+.mascot-stage img,
+.mascot-arm,
+.mascot-swing,
+.mascot-head,
+.mascot-eyes {
+  position: absolute;
+  inset: 0;
+}
+.mascot-stage img {
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.mascot-head {
+  transform-origin: 49.4% 45.7%;
+  transform: translate(var(--hx, 0), var(--hy, 0)) rotate(var(--hr, 0deg));
+}
+.mascot-eyes {
+  transform: translate(var(--ex, 0), var(--ey, 0));
+}
+.mascot-blink {
+  opacity: 0;
+}
+.mascot-stage.is-blink .mascot-blink {
+  opacity: 1;
+}
+.mascot-arm,
+.mascot-swing {
+  transform-origin: 35.3% 52.3%;
+}
+.mascot-arm {
+  transform: rotate(var(--ar, 0deg));
+}
+.mascot-stage.is-swing .mascot-swing {
+  animation: mascot-swing 0.4s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+@keyframes mascot-swing {
+  35% {
+    transform: rotate(4deg);
+  }
+  65% {
+    transform: rotate(-1deg);
+  }
+}
+/* The ball pops when she hits it (PickleCursor listens for "nexa:hit"). */
+.pc.is-hit .pc-ball svg {
+  animation: pc-hit 0.3s ease-out;
+}
+@keyframes pc-hit {
+  40% {
+    transform: scale(1.7);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-stage.is-swing .mascot-swing,
+  .pc.is-hit .pc-ball svg {
+    animation: none;
+  }
+}
+
+/* Public-page background (DotGrid.tsx: landing, log in, register, legal): faint dots fixed to the screen,
+   fading toward the edges; with a mouse, the dots around the cursor turn orange. The dots are a
+   repeating pattern, not a color gradient. */
+.dot-grid {
+  --dot: rgba(9, 9, 11, 0.16);
+  position: fixed; /* stays put while the page scrolls */
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.6px);
+  background-size: 22px 22px;
+  background-position: center top;
+  -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, #000 30%, transparent 80%);
+  mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, #000 30%, transparent 80%);
+}
+:root[data-theme="dark"] .dot-grid {
+  --dot: rgba(250, 250, 250, 0.13);
+}
+.dot-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--accent) 1.4px, transparent 2px);
+  background-size: 22px 22px;
+  background-position: center top;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  -webkit-mask-image: radial-gradient(circle 150px at var(--mx, -999px) var(--my, -999px), #000, transparent);
+  mask-image: radial-gradient(circle 150px at var(--mx, -999px) var(--my, -999px), #000, transparent);
+}
+.dot-grid.is-lit::after {
+  opacity: 1;
 }

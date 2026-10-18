@@ -1,6 +1,8 @@
 import { type FormEvent, useState } from "react";
 import type { Me } from "../../shared/types";
 import { Brand } from "../components/Brand";
+import { DotGrid } from "../components/DotGrid";
+import { PickleCursor } from "../components/PickleCursor";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api, errorMessage } from "../lib/api";
 import { slugify } from "../lib/format";
@@ -27,6 +29,8 @@ export function Login() {
 
   return (
     <main className="auth">
+      <DotGrid />
+      <PickleCursor />
       <div className="auth-card">
         <div className="row spread">
           <Brand />
@@ -97,6 +101,8 @@ export function Register() {
 
   return (
     <main className="auth">
+      <DotGrid />
+      <PickleCursor />
       <div className="auth-card">
         <div className="row spread">
           <Brand />

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NEXA Mascot Preview</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f6f6f7;color:#18181b;font:500 14px system-ui, sans-serif;transition:background .2s,color .2s}body.dark{background:#0e0e12;color:#f5f5f6}header{display:flex;align-items:center;justify-content:center;gap:24px;padding:24px}h1{font-size:18px;margin:0}.toggle{font:inherit;border:1px solid #9995;border-radius:9px;background:#f97342;color:white;padding:10px 15px;cursor:pointer}.stage{max-width:540px;width:min(92vw,540px);aspect-ratio:1;margin:0 auto;position:relative;touch-action:pan-y}.stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none}.headPivot{position:absolute;inset:0;transform-origin:49% 21%;transform:translate(var(--hx,0px),var(--hy,0px)) rotate(var(--hr,0deg));transition:transform .18s ease-out;will-change:transform}.armPivot{position:absolute;inset:0;transform-origin:42% 24%;animation:wave 3.2s ease-in-out infinite;will-change:transform}.eyes{position:absolute;inset:0;transform:translate(var(--ex,0px),var(--ey,0px));transition:transform .13s ease-out}.blink{position:absolute;inset:0;opacity:0;animation:blink 5.6s steps(1,end) infinite}.note{text-align:center;opacity:.7;margin:0 20px 30px}@keyframes blink{0%,33%,35%,70%,72%,100%{opacity:0}34%,71%{opacity:1}}@keyframes wave{0%,100%{transform:rotate(-.4deg)}50%{transform:rotate(2.3deg)}}@media(prefers-reduced-motion:reduce){.headPivot,.armPivot,.eyes,.blink{animation:none!important;transition:none!important}}
+</style></head>
+<body><header><h1>NEXA — animated mascot</h1><button class="toggle" onclick="document.body.classList.toggle('dark')">Toggle light / dark</button></header>
+<div class="stage" id="stage" role="img" aria-label="NEXA female pickleball mascot smiling, blinking and following the pointer">
+<img src="body.png" alt=""><div class="armPivot"><img src="arm.png" alt=""></div>
+<div class="headPivot" id="headPivot"><img src="head.png" alt=""><div class="eyes" id="eyes"><img src="pupils.png" alt=""></div><div class="blink"><img src="blink.png" alt=""></div></div>
+</div><p class="note">Move your cursor — she looks toward it, blinks, and lightly raises her paddle.</p>
+<script>
+const stage=document.getElementById('stage'),head=document.getElementById('headPivot'),eyes=document.getElementById('eyes');
+stage.addEventListener('pointermove', e=>{const r=stage.getBoundingClientRect();let dx=(e.clientX-r.left-r.width/2)/r.width;let dy=(e.clientY-r.top-r.height/2)/r.height;head.style.setProperty('--hx',(dx*7)+'px');head.style.setProperty('--hy',(dy*4)+'px');head.style.setProperty('--hr',(dx*1.2)+'deg');eyes.style.setProperty('--ex',(dx*3)+'px');eyes.style.setProperty('--ey',(dy*2)+'px');});
+stage.addEventListener('pointerleave',()=>{['--hx','--hy','--hr'].forEach(x=>head.style.removeProperty(x));['--ex','--ey'].forEach(x=>eyes.style.removeProperty(x))});
+</script></body></html>

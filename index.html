@@ -46,6 +46,8 @@
       .boot-stem { fill: currentColor; transform-origin: 0 112px; animation: boot-stem .35s .55s cubic-bezier(.3,.7,.2,1) both; }
       .boot-diag { fill: currentColor; animation: boot-diag .45s .85s cubic-bezier(.4,0,.2,1) both; }
       .boot-bar { width: 44px; height: 3px; border-radius: 3px; background: #ff6b2c; transform-origin: center; animation: boot-bar .5s .3s ease-out both, boot-hold 1.2s 1.7s ease-in-out infinite; }
+      .boot-slow { max-width: 260px; margin: 0; text-align: center; font: 14px/1.5 system-ui, sans-serif; opacity: .7; }
+      .boot-slow button { font: inherit; font-weight: 600; color: inherit; background: none; border: 0; padding: 12px 4px; text-decoration: underline; cursor: pointer; }
       @keyframes boot-in { from { opacity: 0; } to { opacity: 1; } }
       @keyframes boot-tri { from { opacity: 0; transform: translate(6px, -6px) scale(.9); } to { opacity: 1; transform: none; } }
       @keyframes boot-stem { from { transform: scaleY(0); } to { transform: scaleY(1); } }
@@ -67,6 +69,7 @@
           <path class="boot-stem" d="M0 12Q0 0 12 0H28V112H12Q0 112 0 100Z" />
         </svg>
         <div class="boot-bar"></div>
+        <p class="boot-slow" hidden>Still loading. The connection may be slow. <button type="button" onclick="location.reload()">Reload</button></p>
       </div>
     </div>
     <script>
@@ -88,6 +91,11 @@
         var cap = setTimeout(fade, 400);
         Promise.all(once.map(function (a) { return a.finished; })).then(function () { clearTimeout(cap); fade(); }, fade);
       };
+      // Still here after 12 s (a very slow connection, or the app failed to load): offer a reload.
+      setTimeout(function () {
+        var slow = window.__nexaReady && document.querySelector(".boot-slow");
+        if (slow) slow.hidden = false;
+      }, 12000);
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
