@@ -2994,8 +2994,9 @@ button.standing:active {
   padding-left: 28px;
 }
 
-/* Product tour (driver.js, loaded only when a tour runs): restyled as a NEXA card. The doubled class
-   beats the library's own CSS, which loads after this file. */
+/* Product tour (driver.js, loaded only when a tour runs): restyled as a NEXA card. Every rule starts with
+   .driver-popover.nexa-tour so it beats the library's CSS (which loads later), including its own
+   :hover/:focus colors. */
 .driver-popover.nexa-tour {
   font-family: var(--font);
   color: var(--ink);
@@ -3008,81 +3009,101 @@ button.standing:active {
   width: min(320px, calc(100vw - 32px));
   max-width: none;
 }
-.nexa-tour .driver-popover-title {
+.driver-popover.nexa-tour .driver-popover-title {
   font-family: var(--font);
+  color: var(--ink);
   font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   padding-right: 32px;
 }
-.nexa-tour .driver-popover-description {
+.driver-popover.nexa-tour .driver-popover-description {
   font-family: var(--font);
   color: var(--muted);
   font-size: 0.9375rem;
   line-height: 1.5;
 }
-.nexa-tour .driver-popover-close-btn {
+.driver-popover.nexa-tour .driver-popover-close-btn {
   width: 44px;
   height: 44px;
   color: var(--muted);
   font-size: 20px;
 }
-.nexa-tour .driver-popover-close-btn:hover,
-.nexa-tour .driver-popover-close-btn:focus-visible {
+.driver-popover.nexa-tour .driver-popover-close-btn:hover,
+.driver-popover.nexa-tour .driver-popover-close-btn:focus {
   color: var(--ink);
 }
-.nexa-tour .driver-popover-footer {
+.driver-popover.nexa-tour .driver-popover-footer {
   margin-top: 16px;
   gap: 8px;
 }
-.nexa-tour .driver-popover-progress-text {
+.driver-popover.nexa-tour .driver-popover-progress-text {
   font-family: var(--font-mono);
   color: var(--muted);
   font-size: 0.75rem;
 }
-.nexa-tour .driver-popover-navigation-btns {
+.driver-popover.nexa-tour .driver-popover-navigation-btns {
   gap: 8px;
 }
-.nexa-tour .driver-popover-footer-btn {
-  font-family: var(--font);
+.driver-popover.nexa-tour .driver-popover-navigation-btns button + button {
+  margin-left: 0;
+}
+/* Back: outlined, like .btn */
+.driver-popover.nexa-tour .driver-popover-footer-btn {
+  display: inline-flex;
+  align-items: center;
   min-height: 40px;
   padding: 0 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
+  font-family: var(--font);
   font-size: 0.875rem;
   font-weight: 550;
   text-shadow: none;
-  display: inline-flex;
-  align-items: center;
 }
-.nexa-tour .driver-popover-navigation-btns button + button {
-  margin-left: 0;
+.driver-popover.nexa-tour .driver-popover-footer-btn:hover,
+.driver-popover.nexa-tour .driver-popover-footer-btn:focus {
+  background: var(--surface-2);
+  color: var(--ink);
 }
-.nexa-tour .driver-popover-next-btn {
+/* Next / Done: solid, like .btn-primary (ink on light, white on dark) */
+.driver-popover.nexa-tour .driver-popover-next-btn,
+.driver-popover.nexa-tour .driver-popover-next-btn:hover,
+.driver-popover.nexa-tour .driver-popover-next-btn:focus {
   background: var(--primary);
   border-color: var(--primary);
   color: var(--primary-ink);
 }
-.nexa-tour .driver-popover-footer-btn:focus-visible {
+.driver-popover.nexa-tour .driver-popover-next-btn:hover {
+  opacity: 0.9;
+}
+.driver-popover.nexa-tour .driver-popover-footer-btn:focus-visible,
+.driver-popover.nexa-tour .driver-popover-close-btn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.nexa-tour .driver-popover-footer .driver-popover-btn-disabled {
+.driver-popover.nexa-tour .driver-popover-footer .driver-popover-btn-disabled {
   display: none;
 }
-.nexa-tour .driver-popover-arrow-side-left {
+.driver-popover.nexa-tour .driver-popover-arrow-side-left {
   border-left-color: var(--surface);
 }
-.nexa-tour .driver-popover-arrow-side-right {
+.driver-popover.nexa-tour .driver-popover-arrow-side-right {
   border-right-color: var(--surface);
 }
-.nexa-tour .driver-popover-arrow-side-top {
+.driver-popover.nexa-tour .driver-popover-arrow-side-top {
   border-top-color: var(--surface);
 }
-.nexa-tour .driver-popover-arrow-side-bottom {
+.driver-popover.nexa-tour .driver-popover-arrow-side-bottom {
   border-bottom-color: var(--surface);
+}
+/* The highlighted control gets an orange ring, so it stands out in dark mode too, where the dimmed page
+   and the spotlight look alike. */
+.driver-active .driver-active-element {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 /* Pickleball cursor (landing page, desktop only; see PickleCursor.tsx). Shown only once the mouse

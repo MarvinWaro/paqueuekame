@@ -235,16 +235,6 @@ function SessionHeader({
           </span>
           <h1>{s.title}</h1>
         </div>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={() => setSheet("settings")}
-          aria-label="Session settings"
-          title="Session settings"
-          data-tour="settings"
-        >
-          <Icon name="gear" />
-        </button>
       </div>
       <div className="counts">
         <span className="count">
@@ -265,6 +255,9 @@ function SessionHeader({
         </button>
         <button type="button" className="btn btn-sm" onClick={() => setSheet("qr")} data-tour="qr">
           <Icon name="qr" /> Check-in QR
+        </button>
+        <button type="button" className="btn btn-sm" onClick={() => setSheet("settings")} data-tour="settings">
+          <Icon name="gear" /> Settings
         </button>
       </div>
 
