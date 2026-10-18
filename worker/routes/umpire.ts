@@ -5,8 +5,9 @@ import { recordResult } from "../actions";
 import type { Env } from "../env";
 import { HttpError, json, readJson } from "../http";
 import type { Router } from "../router";
-import { type Loaded, assertLive, buildState, liveScoreOf, loadSession, refillNext, sentVersion, unchanged } from "../state";
-import { rallySchema, umpStartSchema, undoRallySchema } from "../validate";
+import type { ScoreEvent } from "../../shared/sideout";
+import { type Loaded, assertLive, buildState, liveScoreOf, loadSession, refillNext, sentVersion, teamsOf, unchanged } from "../state";
+import { correctionSchema, rallySchema, umpStartSchema, undoRallySchema } from "../validate";
 
 interface UmpireLink {
   id: string;
@@ -73,6 +74,29 @@ function assertScoring(t: Awaited<ReturnType<typeof target>>) {
 
 const claimed = "EXISTS (SELECT 1 FROM matches WHERE id = ? AND status = 'playing' AND umpire_id = ?)";
 
+/** Adds one event to a game's log. Counted only if the phone saw the latest log, so a double tap can't add it twice. */
+async function appendEvent(env: Env, t: Awaited<ReturnType<typeof target>>, seq: number, e: ScoreEvent): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO score_events (match_id, seq, kind, winner, player_id, server_no, team, created_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ? = (SELECT COUNT(*) FROM score_events WHERE match_id = ?) AND ${claimed}`,
+  )
+    .bind(
+      t.match.id,
+      seq,
+      e.kind,
+      e.kind === "rally" ? e.winner : null,
+      e.kind === "server" ? e.playerId : null,
+      e.kind === "server" ? e.serverNo : null,
+      e.kind === "swap" ? e.team : null,
+      Date.now(),
+      seq,
+      t.match.id,
+      t.match.id,
+      t.ump.id,
+    )
+    .run();
+}
+
 export function umpireRoutes(router: Router): void {
   router.get("/api/ump/:token", async ({ env, params, url }) => {
     const ump = await findUmpire(env, params.token);
@@ -81,7 +105,7 @@ export function umpireRoutes(router: Router): void {
     return json(umpireState(await loadSession(env, ump.session_id), ump)); // read-only
   });
 
-  /** Claims a game and sets who serves first (only before the first rally). */
+  /** Claims a game and sets who serves first and each team's base player (only before the first event). */
   router.post("/api/ump/:token/matches/:matchId/start", async ({ env, req, params }) => {
     const body = await readJson(req, umpStartSchema);
     const { ump, loaded, match } = await target(env, params.token, params.matchId);
@@ -89,12 +113,19 @@ export function umpireRoutes(router: Router): void {
       const other = loaded.umpires.find((u) => u.id === match.umpire_id)?.name ?? "Another umpire";
       throw new HttpError(409, `${other} is scoring Court ${match.court}. Tap Take over if they've stopped.`, "claimed");
     }
+    const t = teamsOf(loaded).get(match.id)!;
+    if ((body.base1 && !t.team1.includes(body.base1)) || (body.base2 && !t.team2.includes(body.base2))) {
+      throw new HttpError(400, "Pick each base player from their own team.", "bad_base");
+    }
+    const fresh = "NOT EXISTS (SELECT 1 FROM score_events WHERE match_id = ?)";
     await env.DB.prepare(
       `UPDATE matches SET umpire_id = ?,
-         first_server = CASE WHEN EXISTS (SELECT 1 FROM rallies WHERE match_id = ?) THEN first_server ELSE ? END
+         first_server = CASE WHEN ${fresh} THEN ? ELSE first_server END,
+         base1 = CASE WHEN ${fresh} THEN ? ELSE base1 END,
+         base2 = CASE WHEN ${fresh} THEN ? ELSE base2 END
        WHERE id = ? AND status = 'playing'`,
     )
-      .bind(ump.id, match.id, body.firstServer, match.id)
+      .bind(ump.id, match.id, body.firstServer, match.id, body.base1 ?? null, match.id, body.base2 ?? null, match.id)
       .run();
     return json(await freshUmpireState(env, ump));
   });
@@ -104,13 +135,22 @@ export function umpireRoutes(router: Router): void {
     const t = await target(env, params.token, params.matchId);
     const live = assertScoring(t);
     if (live.winner) throw new HttpError(409, "The game is over. Save the result, or undo the last rally.", "game_over");
-    // Counted only if the phone saw the latest score, so a double tap can't add the same rally twice.
-    await env.DB.prepare(
-      `INSERT INTO rallies (match_id, seq, winner, created_at)
-       SELECT ?, ?, ?, ? WHERE ? = (SELECT COUNT(*) FROM rallies WHERE match_id = ?) AND ${claimed}`,
-    )
-      .bind(t.match.id, body.seq, body.winner, Date.now(), body.seq, t.match.id, t.match.id, t.ump.id)
-      .run();
+    await appendEvent(env, t, body.seq, { kind: "rally", winner: body.winner });
+    return json(await freshUmpireState(env, t.ump));
+  });
+
+  /** A correction: make a player the server (as 1st or 2nd server), or swap a team's sides. Undo removes it. */
+  router.post("/api/ump/:token/matches/:matchId/correct", async ({ env, req, params }) => {
+    const body = await readJson(req, correctionSchema);
+    const t = await target(env, params.token, params.matchId);
+    assertScoring(t);
+    if (body.kind === "server") {
+      const teams = teamsOf(t.loaded).get(t.match.id)!;
+      if (![...teams.team1, ...teams.team2].includes(body.playerId)) throw new HttpError(400, "That player isn't in this game.", "bad_player");
+      await appendEvent(env, t, body.seq, { kind: "server", playerId: body.playerId, serverNo: body.serverNo });
+    } else {
+      await appendEvent(env, t, body.seq, { kind: "swap", team: body.team });
+    }
     return json(await freshUmpireState(env, t.ump));
   });
 
@@ -119,15 +159,15 @@ export function umpireRoutes(router: Router): void {
     const t = await target(env, params.token, params.matchId);
     assertScoring(t);
     await env.DB.prepare(
-      `DELETE FROM rallies WHERE match_id = ? AND seq = ?
-         AND seq = (SELECT MAX(seq) FROM rallies WHERE match_id = ?) AND ${claimed}`,
+      `DELETE FROM score_events WHERE match_id = ? AND seq = ?
+         AND seq = (SELECT MAX(seq) FROM score_events WHERE match_id = ?) AND ${claimed}`,
     )
       .bind(t.match.id, body.seq, t.match.id, t.match.id, t.ump.id)
       .run();
     return json(await freshUmpireState(env, t.ump));
   });
 
-  /** Saves the result once a team has won: the score comes from the rallies, not the phone. */
+  /** Saves the result once a team has won: the score comes from the umpire log, not the phone. */
   router.post("/api/ump/:token/matches/:matchId/finish", async ({ env, params }) => {
     const t = await target(env, params.token, params.matchId);
     const live = assertScoring(t);

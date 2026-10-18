@@ -15,6 +15,7 @@ import { Link, goBack } from "../../lib/router";
 import { shareText } from "../../lib/share";
 import { useApi, useNow } from "../../lib/useApi";
 import { GameLog, Podium, SessionSummary, Standings, standingsText } from "../Results";
+import { Loading } from "../../components/Loading";
 
 type Tab = "courts" | "line" | "players" | "results";
 type Act = (path: string, body?: unknown, done?: string, method?: "POST" | "PATCH" | "DELETE") => Promise<boolean>;
@@ -56,7 +57,7 @@ export function SessionControl({ id }: { id: string }) {
       </div>
     );
   }
-  if (!state) return <div className="page muted">Loading the courts…</div>;
+  if (!state) return <div className="page"><Loading label="Loading the courts…" /></div>;
 
   const s = state.session;
   const editSheet = editing && (

@@ -78,22 +78,22 @@ export function playerRoutes(router: Router): void {
       .bind(team.id)
       .all<{ name: string }>();
     const seen = new Set(results.map((r) => r.name.toLowerCase()));
-    const fresh: string[] = [];
-    for (const name of body.names) {
-      const key = name.toLowerCase();
+    const fresh: { name: string; skill: number | null }[] = [];
+    for (const p of body.players) {
+      const key = p.name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      fresh.push(name);
+      fresh.push({ name: p.name, skill: p.skill ?? null });
     }
     if (results.length + fresh.length > MAX_PLAYERS) {
       throw new HttpError(400, `A team can have up to ${MAX_PLAYERS} players.`, "too_many");
     }
     const now = Date.now();
     if (fresh.length) {
-      const insert = env.DB.prepare("INSERT INTO players (id, team_id, name, created_at) VALUES (?, ?, ?, ?)");
-      await env.DB.batch(fresh.map((name, i) => insert.bind(ulid(now + i), team.id, name, now)));
+      const insert = env.DB.prepare("INSERT INTO players (id, team_id, name, skill, created_at) VALUES (?, ?, ?, ?, ?)");
+      await env.DB.batch(fresh.map((p, i) => insert.bind(ulid(now + i), team.id, p.name, p.skill, now)));
     }
-    return json({ added: fresh.length, skipped: body.names.length - fresh.length }, 201);
+    return json({ added: fresh.length, skipped: body.players.length - fresh.length }, 201);
   });
 
   router.patch("/api/players/:id", async ({ env, req, params }) => {

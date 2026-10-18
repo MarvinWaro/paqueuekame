@@ -1,11 +1,10 @@
 import { useEffect } from "react";
-import type { CourtColors } from "../../shared/courtThemes";
+import { type CourtColors, courtVars } from "../../shared/courtThemes";
 
-/** Paints the courts in the team's colors. Everything else in styles.css derives from these two. */
-export function applyCourtColors({ court, kitchen }: CourtColors): void {
+/** Paints the courts in the team's colors, with lines and names in the ink that reads on them. */
+export function applyCourtColors(colors: CourtColors): void {
   const root = document.documentElement.style;
-  root.setProperty("--tc-court", court);
-  root.setProperty("--tc-kitchen", kitchen);
+  for (const [name, value] of Object.entries(courtVars(colors))) root.setProperty(name, value);
 }
 
 export function useCourtColors(colors: CourtColors | null | undefined): void {

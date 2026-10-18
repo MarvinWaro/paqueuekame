@@ -20,6 +20,7 @@ const paths = {
   undo: "M9 5 4 10l5 5 M4 10h10a5 5 0 0 1 0 10h-3",
   edit: "M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4 M13.5 6.5l4 4",
   chevron: "M9 6l6 6-6 6",
+  swap: "M7 4v16 M3 8l4-4 4 4 M17 20V4 M13 16l4 4 4-4",
   bell: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Z M10 20a2 2 0 0 0 4 0",
   check: "M5 12.5l4.5 4.5L19 7.5",
   logout: "M15 4h4v16h-4 M10 8l-4 4 4 4 M6 12h10",

@@ -1,5 +1,6 @@
 // Real court color combinations: the playing area, and the kitchen (non-volley zone) by the net.
-// Lines are always white. Dark mode darkens these automatically in styles.css.
+// Lines and names are white, or near-black on colors too light for white (inkOn). Dark mode darkens the colors in
+// styles.css, and the ink is worked out for that darker shade too.
 
 export const COURT_THEMES = {
   // The NEXA look and the default for new teams: a terracotta nude (orange, not brown) that keeps
@@ -49,9 +50,6 @@ export function normalizeHex(value: string): string {
   return v.startsWith("#") ? v : `#${v}`;
 }
 
-// White lines sit on both areas (3:1). The court color also backs white button text, so it needs 4.5:1.
-const MIN_CONTRAST: Record<keyof CourtColors, number> = { court: 4.5, kitchen: 3 };
-
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((i) => {
     const c = parseInt(hex.slice(i, i + 2), 16) / 255;
@@ -60,11 +58,43 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+const WHITE = "#ffffff";
+const DARK_INK = "#09090b";
+
+// White, like real court lines, while it's readable: names sit on the court (4.5:1), only the net sits
+// on the kitchen (3:1). Below that, near-black, which then reads at 4.5:1 or better.
+const MIN_WHITE: Record<keyof CourtColors, number> = { court: 4.5, kitchen: 3 };
+
+/** The ink for lines (and, on the court, names) on an area's color. */
+export function inkOn(area: keyof CourtColors, hex: string): string {
+  return 1.05 / (luminance(hex) + 0.05) >= MIN_WHITE[area] ? WHITE : DARK_INK;
+}
+
+/** The shade dark mode paints: 88% of the color mixed with the dark background, as in styles.css. */
+function dimmed(hex: string): string {
+  const mix = (i: number) => {
+    const v = Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.88 + parseInt(DARK_INK.slice(i, i + 2), 16) * 0.12);
+    return v.toString(16).padStart(2, "0");
+  };
+  return `#${mix(1)}${mix(3)}${mix(5)}`;
+}
+
+/** CSS variables for the courts: the two colors plus the ink on each, for light and dark mode. */
+export function courtVars({ court, kitchen }: CourtColors): Record<string, string> {
+  const rev = (hex: string) => (inkOn("court", hex) === WHITE ? DARK_INK : WHITE);
+  return {
+    "--tc-court": court,
+    "--tc-kitchen": kitchen,
+    "--tc-court-ink": inkOn("court", court),
+    "--tc-court-rev": rev(court),
+    "--tc-kitchen-ink": inkOn("kitchen", kitchen),
+    "--tc-court-ink-dark": inkOn("court", dimmed(court)),
+    "--tc-court-rev-dark": rev(dimmed(court)),
+    "--tc-kitchen-ink-dark": inkOn("kitchen", dimmed(kitchen)),
+  };
+}
+
 /** Why a custom color can't be used, in words for the organizer, or null when it's fine. */
 export function courtColorProblem(area: keyof CourtColors, hex: string): string | null {
-  if (!HEX_COLOR.test(hex)) return `Enter the ${area} color as 6 hex digits, like #2a5c96.`;
-  if (1.05 / (luminance(hex) + 0.05) >= MIN_CONTRAST[area]) return null;
-  return area === "court"
-    ? "This court color is too light for white lines and button text. Pick a darker shade."
-    : "This kitchen color is too light for the white lines. Pick a darker shade.";
+  return HEX_COLOR.test(hex) ? null : `Enter the ${area} color as 6 hex digits, like #2a5c96.`;
 }

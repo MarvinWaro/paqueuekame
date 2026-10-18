@@ -319,6 +319,18 @@ export function sessionRoutes(router: Router): void {
             ).bind(params.id, body.out, match.id, body.out, match.id, body.in),
           ]
         : []),
+      // An umpire's log names players: the new player takes over the base spot and any server corrections.
+      env.DB.prepare(
+        `UPDATE matches SET base1 = CASE WHEN base1 = ? THEN ? ELSE base1 END, base2 = CASE WHEN base2 = ? THEN ? ELSE base2 END
+         WHERE id = ? AND ${swapped}`,
+      ).bind(body.out, body.in, body.out, body.in, match.id, match.id, body.in),
+      env.DB.prepare(`UPDATE score_events SET player_id = ? WHERE match_id = ? AND player_id = ? AND ${swapped}`).bind(
+        body.in,
+        match.id,
+        body.out,
+        match.id,
+        body.in,
+      ),
     ]);
     return json(await freshState(env, params.id, true));
   });
@@ -345,11 +357,12 @@ export function sessionRoutes(router: Router): void {
           ]
         : []),
       // Any umpire scoring starts over when the game starts again.
-      env.DB.prepare(`DELETE FROM rallies WHERE match_id = ? AND ${playing}`).bind(match.id, match.id),
+      env.DB.prepare(`DELETE FROM score_events WHERE match_id = ? AND ${playing}`).bind(match.id, match.id),
       // Only one Up Next is allowed, so the one that formed after Start goes first.
       ...(next ? deleteNextStatements(env, next.id) : []),
       env.DB.prepare(
-        `UPDATE matches SET status = 'next', court = NULL, started_at = NULL, first_server = NULL, umpire_id = NULL
+        `UPDATE matches SET status = 'next', court = NULL, started_at = NULL, first_server = NULL, umpire_id = NULL,
+           base1 = NULL, base2 = NULL
          WHERE id = ? AND status = 'playing'`,
       ).bind(match.id),
     ]);
@@ -445,7 +458,7 @@ export function sessionRoutes(router: Router): void {
     const match = loaded.matches.find((m) => m.id === params.matchId);
     if (!match || match.status !== "playing") throw new HttpError(404, "That game isn't on court.", "not_found");
     await env.DB.batch([
-      env.DB.prepare("DELETE FROM rallies WHERE match_id = ? AND EXISTS (SELECT 1 FROM matches WHERE id = ? AND status = 'playing')").bind(
+      env.DB.prepare("DELETE FROM score_events WHERE match_id = ? AND EXISTS (SELECT 1 FROM matches WHERE id = ? AND status = 'playing')").bind(
         match.id,
         match.id,
       ),

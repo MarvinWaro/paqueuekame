@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Me } from "../../../shared/types";
 import { ApiError, api } from "../../lib/api";
 import { navigate } from "../../lib/router";
+import { Loading } from "../../components/Loading";
 
 /** /app opens the running session, or the page to start one. */
 export function AppHome() {
@@ -15,7 +16,7 @@ export function AppHome() {
   }, []);
   return (
     <main className="auth">
-      <p className="muted">Opening your courts…</p>
+      <Loading label="Opening your courts…" />
     </main>
   );
 }

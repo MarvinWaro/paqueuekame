@@ -34,8 +34,61 @@
       })();
     </script>
     <title>NEXA</title>
+    <style>
+      /* Boot splash: inline so it shows before the app downloads. It stays invisible for the first
+         300 ms, so on a fast connection nobody sees it; on a slow one the N builds once, then the bar
+         breathes until the app is ready. main.tsx calls window.__nexaReady() after the first render. */
+      #boot { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #fafafa; color: #09090b; opacity: 0; animation: boot-in .2s .3s ease-out both; transition: opacity .25s ease-out; }
+      html[data-theme="dark"] #boot { background: #09090b; color: #fafafa; }
+      .boot-mark { display: grid; justify-items: center; gap: 22px; }
+      .boot-n { width: 76px; height: auto; overflow: visible; animation: boot-lock .3s 1.35s ease-out both; }
+      .boot-tri { fill: #ff6b2c; transform-origin: 118px 0; animation: boot-tri .35s .3s cubic-bezier(.2,.7,.2,1) both; }
+      .boot-stem { fill: currentColor; transform-origin: 0 112px; animation: boot-stem .35s .55s cubic-bezier(.3,.7,.2,1) both; }
+      .boot-diag { fill: currentColor; animation: boot-diag .45s .85s cubic-bezier(.4,0,.2,1) both; }
+      .boot-bar { width: 44px; height: 3px; border-radius: 3px; background: #ff6b2c; transform-origin: center; animation: boot-bar .5s .3s ease-out both, boot-hold 1.2s 1.7s ease-in-out infinite; }
+      @keyframes boot-in { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes boot-tri { from { opacity: 0; transform: translate(6px, -6px) scale(.9); } to { opacity: 1; transform: none; } }
+      @keyframes boot-stem { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+      @keyframes boot-diag { from { clip-path: polygon(0 0, 0 0, 0 0); } to { clip-path: polygon(0 0, 200% 0, 0 200%); } }
+      @keyframes boot-lock { 50% { transform: scale(1.05); } }
+      @keyframes boot-bar { from { opacity: 0; transform: scaleX(.2); } to { opacity: 1; transform: scaleX(1); } }
+      @keyframes boot-hold { 50% { opacity: .35; transform: scaleX(.6); } }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-n, .boot-tri, .boot-stem, .boot-diag, .boot-bar { animation: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot" role="status" aria-label="Loading NEXA">
+      <div class="boot-mark">
+        <svg class="boot-n" viewBox="0 0 118 112" aria-hidden="true">
+          <path class="boot-tri" d="M62 0H110Q118 0 118 8V56Z" />
+          <path class="boot-diag" d="M20 0H28L118 90V104Q118 112 110 112H94L28 46H20Z" />
+          <path class="boot-stem" d="M0 12Q0 0 12 0H28V112H12Q0 112 0 100Z" />
+        </svg>
+        <div class="boot-bar"></div>
+      </div>
+    </div>
+    <script>
+      // Hide the splash once the app has rendered: skip it if it never became visible, otherwise
+      // fast-forward the build so it ends on the full logo, then fade out.
+      window.__nexaReady = function () {
+        window.__nexaReady = undefined;
+        var el = document.getElementById("boot");
+        if (!el) return;
+        if (parseFloat(getComputedStyle(el).opacity) < 0.05) { el.remove(); return; }
+        var anims = el.getAnimations ? el.getAnimations({ subtree: true }) : [];
+        var once = anims.filter(function (a) { return a.effect && a.effect.getTiming().iterations !== Infinity; });
+        anims.forEach(function (a) { if (once.indexOf(a) < 0) a.cancel(); });
+        once.forEach(function (a) { a.playbackRate = 6; });
+        var fade = function () {
+          el.style.animation = "none"; el.style.opacity = "1"; void el.offsetWidth; el.style.opacity = "0";
+          setTimeout(function () { el.remove(); }, 300);
+        };
+        var cap = setTimeout(fade, 400);
+        Promise.all(once.map(function (a) { return a.finished; })).then(function () { clearTimeout(cap); fade(); }, fade);
+      };
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

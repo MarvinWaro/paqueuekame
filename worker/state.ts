@@ -14,7 +14,7 @@ import type {
   Unchanged,
 } from "../shared/types";
 import { courtColorsOf, customColorsOf } from "../shared/courtThemes";
-import { sideoutScore } from "../shared/sideout";
+import { type ScoreEvent, sideoutScore } from "../shared/sideout";
 import { compareStandings } from "../shared/standings";
 import type { Env } from "./env";
 import { HttpError } from "./http";
@@ -70,12 +70,25 @@ interface MatchRow {
   ended_at: number | null;
   first_server: 1 | 2 | null;
   umpire_id: string | null;
+  base1: string | null; // base players: who starts on each team's right side
+  base2: string | null;
 }
 
-interface RallyRow {
+interface ScoreEventRow {
   match_id: string;
-  winner: 1 | 2;
+  kind: "rally" | "server" | "swap";
+  winner: 1 | 2 | null;
+  player_id: string | null;
+  server_no: 1 | 2 | null;
+  team: 1 | 2 | null;
 }
+
+const toEvent = (r: ScoreEventRow): ScoreEvent =>
+  r.kind === "server"
+    ? { kind: "server", playerId: r.player_id!, serverNo: r.server_no! }
+    : r.kind === "swap"
+      ? { kind: "swap", team: r.team! }
+      : { kind: "rally", winner: r.winner! };
 
 export interface UmpireRow {
   id: string;
@@ -104,7 +117,7 @@ export interface Loaded {
   matches: MatchRow[];
   matchPlayers: MatchPlayerRow[];
   coming: ComingRow[];
-  rallies: RallyRow[]; // games on court only, in order
+  scoreEvents: ScoreEventRow[]; // umpire logs of games on court, in order
   umpires: UmpireRow[]; // active only
 }
 
@@ -120,7 +133,7 @@ export async function loadSession(env: Env, sessionId: string): Promise<Loaded> 
        WHERE sp.session_id = ?`,
     ).bind(sessionId),
     env.DB.prepare(
-      `SELECT id, status, court, winner, score1, score2, created_at, started_at, ended_at, first_server, umpire_id
+      `SELECT id, status, court, winner, score1, score2, created_at, started_at, ended_at, first_server, umpire_id, base1, base2
        FROM matches WHERE session_id = ? AND status != 'cancelled'`,
     ).bind(sessionId),
     env.DB.prepare(
@@ -134,7 +147,7 @@ export async function loadSession(env: Env, sessionId: string): Promise<Loaded> 
        WHERE r.session_id = ? ORDER BY r.created_at`,
     ).bind(sessionId),
     env.DB.prepare(
-      `SELECT r.match_id, r.winner FROM rallies r JOIN matches m ON m.id = r.match_id
+      `SELECT r.match_id, r.kind, r.winner, r.player_id, r.server_no, r.team FROM score_events r JOIN matches m ON m.id = r.match_id
        WHERE m.session_id = ? AND m.status = 'playing' ORDER BY r.match_id, r.seq`,
     ).bind(sessionId),
     env.DB.prepare(
@@ -150,7 +163,7 @@ export async function loadSession(env: Env, sessionId: string): Promise<Loaded> 
     matches: m.results as MatchRow[],
     matchPlayers: mp.results as MatchPlayerRow[],
     coming: c.results as ComingRow[],
-    rallies: r.results as RallyRow[],
+    scoreEvents: r.results as ScoreEventRow[],
     umpires: u.results as UmpireRow[],
   };
 }
@@ -280,13 +293,13 @@ export function unchanged(version: number): Unchanged {
   return { unchanged: true, version, serverTime: Date.now() };
 }
 
-/** The running side-out score of a game on court, worked out from its rallies. Null until an umpire starts it. */
+/** The running side-out score of a game on court, worked out from its umpire log. Null until an umpire starts it. */
 export function liveScoreOf(loaded: Loaded, m: Loaded["matches"][number], teams = teamsOf(loaded)): LiveScore | null {
   const t = teams.get(m.id);
   if (m.status !== "playing" || !m.first_server || !t) return null;
-  const rallies = loaded.rallies.filter((r) => r.match_id === m.id).map((r) => r.winner);
+  const events = loaded.scoreEvents.filter((r) => r.match_id === m.id).map(toEvent);
   const umpire = loaded.umpires.find((u) => u.id === m.umpire_id);
-  return { ...sideoutScore(m.first_server, rallies, t.team1, t.team2), umpireId: m.umpire_id, umpire: umpire?.name ?? null };
+  return { ...sideoutScore(m.first_server, events, t.team1, t.team2, { 1: m.base1, 2: m.base2 }), umpireId: m.umpire_id, umpire: umpire?.name ?? null };
 }
 
 // ---------- API shape ----------

@@ -36,12 +36,6 @@
   --ok-soft: #f0fdf4;
   --focus: #18181b;
 
-  /* --tc-* come from the team's court colors (src/lib/courtTheme.ts). */
-  --court: var(--tc-court, #b0613f);
-  --court-deep: color-mix(in srgb, var(--court) 80%, #000);
-  --kitchen: var(--tc-kitchen, #57534e);
-  --court-line: #ffffff;
-
   /* Older names, kept so every screen maps onto the accent. */
   --ball: var(--accent);
   --ball-ink: var(--accent-ink);
@@ -84,15 +78,35 @@
   --ok-soft: #0f2416;
   --focus: #d4d4d8;
 
-  --court: color-mix(in srgb, var(--tc-court, #b0613f) 88%, #09090b);
-  --court-deep: color-mix(in srgb, var(--court) 78%, #000);
-  --kitchen: color-mix(in srgb, var(--tc-kitchen, #57534e) 88%, #09090b);
-  --court-line: rgba(255, 255, 255, 0.88);
-
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
   --shadow-lg: 0 24px 48px -16px rgba(0, 0, 0, 0.8);
   --scrim: rgba(0, 0, 0, 0.62);
+}
+
+/* Court colors. --tc-* come from the team's colors (courtVars in shared/courtThemes.ts), set on <html>
+   or on a Team settings swatch. The ink (lines and names) is white, or near-black on light colors;
+   --court-rev is the opposite ink, for the "you" box. Dark mode darkens the colors and uses the ink
+   worked out for that darker shade. */
+:root,
+.swatch {
+  --court: var(--tc-court, #b0613f);
+  --court-deep: color-mix(in srgb, var(--court) 80%, #000);
+  --kitchen: var(--tc-kitchen, #57534e);
+  --court-ink: var(--tc-court-ink, #fff);
+  --court-rev: var(--tc-court-rev, #09090b);
+  --kitchen-ink: var(--tc-kitchen-ink, #fff);
+  --court-line: var(--court-ink);
+}
+:root[data-theme="dark"],
+:root[data-theme="dark"] .swatch {
+  --court: color-mix(in srgb, var(--tc-court, #b0613f) 88%, #09090b);
+  --court-deep: color-mix(in srgb, var(--court) 78%, #000);
+  --kitchen: color-mix(in srgb, var(--tc-kitchen, #57534e) 88%, #09090b);
+  --court-ink: var(--tc-court-ink-dark, #fff);
+  --court-rev: var(--tc-court-rev-dark, #09090b);
+  --kitchen-ink: var(--tc-kitchen-ink-dark, #fff);
+  --court-line: color-mix(in srgb, var(--court-ink) 88%, transparent);
 }
 
 *,
@@ -685,6 +699,44 @@ textarea.input {
   place-items: center;
   padding: 32px 16px;
 }
+/* Screen waiting on its data: the NEXA mark from the boot splash, still, with a breathing bar. */
+.loading {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 48px 16px;
+  color: var(--ink);
+}
+.loading-n {
+  width: 40px;
+  height: auto;
+  fill: currentColor;
+}
+.loading-tri {
+  fill: var(--accent);
+}
+.loading-bar {
+  width: 24px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  animation: loading-bar 1.2s ease-in-out infinite;
+}
+.loading p {
+  margin: 0;
+  color: var(--muted);
+}
+@keyframes loading-bar {
+  50% {
+    opacity: 0.35;
+    transform: scaleX(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar {
+    animation: none;
+  }
+}
 .auth-card {
   width: 100%;
   max-width: 400px;
@@ -855,7 +907,7 @@ textarea.input {
   outline: 2px solid var(--court-deep);
   outline-offset: 0;
   margin: 2px;
-  color: #fff;
+  color: var(--court-ink);
   overflow: hidden;
 }
 .diagram .half {
@@ -884,10 +936,10 @@ textarea.input {
   text-underline-offset: 4px;
 }
 .diagram button.box:active {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--court-ink) 14%, transparent);
 }
 .diagram button.box:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--court-ink);
   outline-offset: -5px;
 }
 .diagram .half .box:first-child {
@@ -903,19 +955,23 @@ textarea.input {
   background: var(--kitchen);
 }
 .diagram .net {
-  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.95) 0 3px, rgba(255, 255, 255, 0.35) 3px 6px);
+  background: repeating-linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--kitchen-ink) 95%, transparent) 0 3px,
+    color-mix(in srgb, var(--kitchen-ink) 35%, transparent) 3px 6px
+  );
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
 }
 .diagram.is-free {
   opacity: 0.5;
 }
 .diagram .winner {
-  background: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--court-ink) 16%, transparent);
 }
 .diagram .you {
-  /* White stands out on every court color, including orange ones. */
-  background: #fff;
-  color: #09090b;
+  /* A box in the line color stands out on every court color, including orange ones. */
+  background: var(--court-ink);
+  color: var(--court-rev);
 }
 .diagram-free-label {
   grid-column: 1 / -1;
@@ -928,8 +984,8 @@ textarea.input {
   height: 9px;
   margin-right: 6px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+  background: var(--court-ink);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--court-rev) 25%, transparent);
 }
 
 .court-actions {
@@ -1006,6 +1062,49 @@ textarea.input {
 }
 .ump-score b {
   font-family: var(--font-num);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+/* Umpire setup steps and corrections */
+.ump-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ump-step > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+.ump-step-no {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.ump-choice .btn[aria-pressed="true"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.ump-swaps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: -6px;
+}
+.ump-swaps .btn {
+  color: var(--muted);
+}
+.ump-server-pick .btn {
+  display: grid;
+  gap: 4px;
+}
+.ump-server-pick .btn b {
   font-size: 1.5rem;
   font-weight: 600;
 }
@@ -1205,19 +1304,39 @@ button.line-item:hover {
   background: var(--surface-2);
 }
 
+/* Skill chip: a small pickleball and the level number, in ink so it reads on light and dark. */
 .skill {
+  flex: none;
   display: inline-flex;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-num);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
   vertical-align: middle;
 }
-.skill i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--line-strong);
+.skill svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
 }
-.skill i.on {
-  background: var(--ink);
+.skill-plain {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+}
+.skill-plain svg {
+  width: 14px;
+  height: 14px;
 }
 
 .section-head {
@@ -1535,7 +1654,7 @@ button.line-item:hover {
 .you-card.is-playing {
   background: var(--court);
   border-color: var(--court);
-  color: #fff;
+  color: var(--court-ink);
 }
 .you-card.is-playing .muted {
   color: inherit;
@@ -1837,6 +1956,87 @@ button.line-item:hover {
   .desktop-only {
     display: block;
   }
+}
+
+/* Paste a list: review step */
+.review-bar {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.tick-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 0.875rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+.tick-all input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--ink);
+}
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.review-row {
+  display: grid;
+  gap: 6px;
+  padding: 6px 6px 6px 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.review-row.is-off {
+  background: var(--surface-2);
+}
+.review-row.is-off .review-main .input {
+  color: var(--muted);
+}
+.review-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.review-main .tick {
+  margin: 0;
+}
+.review-main .input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  box-shadow: none;
+}
+.skill-toggle {
+  flex: none;
+  min-width: 64px;
+  color: var(--muted);
+}
+.skill-toggle.has-skill {
+  color: var(--ink);
+}
+.review-row .icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.review-note {
+  padding-left: 46px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.review-skill {
+  display: grid;
+  gap: 4px;
+  padding: 2px 0 4px 46px;
 }
 
 /* Bulk check-in */
@@ -2303,9 +2503,6 @@ button.standing:active {
   gap: 10px;
 }
 .swatch {
-  --court: var(--sw-court);
-  --kitchen: var(--sw-kitchen);
-  --court-deep: color-mix(in srgb, var(--sw-court) 80%, #000);
   display: grid;
   gap: 8px;
   padding: 8px 8px 10px;
@@ -2320,10 +2517,6 @@ button.standing:active {
 }
 .swatch:hover {
   border-color: var(--line-strong);
-}
-:root[data-theme="dark"] .swatch {
-  --court: color-mix(in srgb, var(--sw-court) 88%, #09090b);
-  --kitchen: color-mix(in srgb, var(--sw-kitchen) 88%, #09090b);
 }
 .swatch[aria-pressed="true"] {
   border-color: var(--ink);

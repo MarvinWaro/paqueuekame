@@ -25,11 +25,11 @@ How Ciel works:
 - Players open the **live link** (view only) to see courts, Up Next, the line and standings, and get a buzz when they're up.
 - Players can **self check-in** from the QR code at the court, which carries the session's check-in token.
 - **Invite to join**: the organizer posts the live link in the club group chat. Members tap **I'm coming** and land on a *Coming* list (`session_rsvps`), **not** in line. They join the back of the line only when they check in at the court (QR, where the phone offers "I'm here: check in as …", or the organizer's **Here** on the Check in tab). People at home can't hold a place.
-- **Umpires**: the organizer makes a player (often one done playing, optionally put on break) or a guest an umpire; each gets a personal link (`/ump/:token`, shown as a QR or sent). Umpires pick a court and score it rally by rally with traditional side-out scoring (`shared/sideout.ts`: 0-0-2 start, game to 11, win by 2). The live score and server show on the organizer screen and the live link. At game over the umpire saves the result (same `recordResult` as organizers). Umpire links can't touch the line.
+- **Umpires**: the organizer makes a player (often one done playing, optionally put on break) or a guest an umpire; each gets a personal link (`/ump/:token`, shown as a QR or sent). Umpires pick a court, record the coin toss (who serves first) and each team's **base player** (starts on the right/even side; the serving team's base player serves first at 0-0-2), then score rally by rally with traditional side-out scoring (`shared/sideout.ts`: game to 11, win by 2). They can correct the screen to match the court: tap a name to make that player the server (as 1st or 2nd server), or swap a team's sides. Corrections are log events, so Undo removes them like rallies. Courts are drawn with players where they actually stand (`courtOrder`). The live score and server show on the organizer screen and the live link. At game over the umpire saves the result (same `recordResult` as organizers). Umpire links can't touch the line.
 - **Bulk check-in**: tick names (or Select all) on the Check in tab; their starting order is shuffled so the alphabet doesn't decide who plays first.
 - **Results**: winner plus optional score. The result sheet checks while typing and blocks saving when the score disagrees with the picked winner or is tied, with a one-tap "Change winner" fix. Undo puts the latest game back on court for 15 minutes (`UNDO_MINUTES` in `worker/state.ts`). Edit result fixes the winner or score of any finished game, even after the session ends, without touching the line or courts.
 - **Session summary** when a session ends: totals, pace (average game length and wait), podium with gold/silver/bronze, standings with win rate, opponent strength and point difference, a "how ties are broken" note, and a Share button that copies text for the group chat.
-- **Court colors**: the team picks a real court color preset, or custom court and kitchen colors (contrast-checked), in Team settings; organizers and the live link both use it.
+- **Court colors**: the team picks a real court color preset, or any custom court and kitchen colors, in Team settings. Lines and names stay white while that's readable and switch to near-black on light colors (`inkOn`/`courtVars` in `shared/courtThemes.ts`, worked out for dark mode's darker shade too); organizers and the live link both use it.
 - **Player stats**: tap a name in any standings list (organizer or live link) for rank, record, "Why #N?" against the players above and below, their games, and Share.
 - **Places**: each session can be at a saved place (e.g. "AEON court") that remembers its usual court count.
 - **Club tab**: leaderboards across sessions (Most wins, Best win rate with a minimum of games, Most active) for this month, last month or all time, optionally at one place; all past sessions; and the places list.
@@ -62,8 +62,9 @@ migrations/0005_places.sql       places, sessions.place_id (old venue text becam
 migrations/0006_session_version.sql  sessions.version + triggers that bump it on every change
 migrations/0007_rsvps.sql        session_rsvps ("I'm coming" from the group chat)
 migrations/0008_umpires.sql      umpires, rallies, matches.first_server, matches.umpire_id
+migrations/0009_score_events.sql rallies -> score_events (rally, server, swap events), matches.base1/base2
 shared/matchModes.ts       matching modes (labels); weights per mode in worker/queue.ts
-shared/sideout.ts          side-out scoring from the rally log (pure; Worker and umpire phone)
+shared/sideout.ts          side-out scoring from the umpire's event log, base players, corrections, court order (pure; Worker and umpire phone)
 shared/standings.ts        the standings order (server sort and the "Why #N?" text both use it)
 shared/courtThemes.ts      court color presets (court + kitchen); src/lib/courtTheme.ts applies them
 shared/types.ts            API shapes (SessionState is what every session screen renders)
@@ -74,7 +75,7 @@ worker/routes/auth.ts      register, login, me, team, organizers, password
 worker/routes/players.ts   roster CRUD, bulk paste
 worker/routes/sessions.ts  start/end, check in, Up Next start/swap/shuffle, result/undo/cancel
 worker/routes/live.ts      public live board, self check-in, I'm coming
-worker/routes/umpire.ts    public umpire routes (token): start scoring, rally, undo, finish
+worker/routes/umpire.ts    public umpire routes (token): start (coin toss + base players), rally, correct (server/swap), undo, finish
 worker/routes/places.ts    places CRUD (archived, never deleted), find-or-create by name
 worker/routes/club.ts      club leaderboard (month bounds in the team's time zone)
 src/pages/app/Club.tsx     Club tab: leaderboards, sessions, places
@@ -97,12 +98,12 @@ src/components/Sheet.tsx   bottom drawer / dialog; runs its focus effect once (r
 - `session_players.skips` is a deliberate cached counter, updated when a game starts.
 - Players are archived (`archived_at`), never deleted, so old games keep their names.
 - Mutations that can be double-tapped use guarded statements in one batch (`... AND EXISTS (SELECT 1 FROM matches WHERE id = ? AND status = ...)`). Follow that pattern.
-- A live score is always computed from `rallies` (never sent by a phone). Rally inserts carry the count the phone saw (`seq`), so a double tap counts once. Moving a game back to Up Next or cancelling it clears its rallies.
+- A live score is always computed from `score_events` (never sent by a phone). Every event insert carries the count the phone saw (`seq`), so a double tap counts once. Moving a game back to Up Next or cancelling it clears its events and base players; swapping a player on court moves their base spot and server corrections to the new player.
 - Umpire tokens (`umpires.token`), like `checkin_token`, are only ever sent to organizers.
 - Public routes never write on GET. The live board, organizer screen and umpire screen all poll every 5 s, **on the same beat of the server clock** (:00, :05, ...; `useApi` in `src/lib/useApi.ts`), so every phone shows a change within about a second of the others. Measured on the live site with 30 simulated phones: changes reach phones in ~0.6–4 s (was 4–15 s with independent 15 s timers).
 - Request budget (Workers free: 100,000 API requests/day; page files don't count): one visible phone polling every 5 s is 720 requests/hour, so ~15 phones for a 6-hour session is ~65k plus organizer and umpires, about 75k. Fine for one session a day; for more, go to Workers Paid ($5/month) or WebSockets before polling faster.
 - Smart Placement is on (`placement: smart` in `wrangler.jsonc`): the API runs next to D1 (APAC, seen as `cf-placement: remote-HKG`) even when Philippine providers route visitors to US data centers. That cut organizer taps from 1–2 s to ~0.6 s. Keep database trips per request few; each extra one used to cost ~0.15 s.
-- Polls send `?v=<version>`. If `sessions.version` is unchanged the server replies `{ unchanged: true }` after reading one row. This keeps a 6-hour, 30-phone session (7 PM to 1 AM is one D1 day, since limits reset at 8 AM Manila) far under the 5M rows-read daily limit. Any new write that changes what the board shows must bump the version: triggers cover session_players, matches, match_players swaps, session_rsvps, rallies and umpires; `UPDATE sessions` statements bump it explicitly.
+- Polls send `?v=<version>`. If `sessions.version` is unchanged the server replies `{ unchanged: true }` after reading one row. This keeps a 6-hour, 30-phone session (7 PM to 1 AM is one D1 day, since limits reset at 8 AM Manila) far under the 5M rows-read daily limit. Any new write that changes what the board shows must bump the version: triggers cover session_players, matches, match_players swaps, session_rsvps, score_events and umpires; `UPDATE sessions` statements bump it explicitly.
 
 ## Standings rules
 

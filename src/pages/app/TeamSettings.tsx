@@ -10,6 +10,7 @@ import {
   courtColorProblem,
   courtColorsOf,
   courtThemeOf,
+  courtVars,
   normalizeHex,
 } from "../../../shared/courtThemes";
 import { Icon } from "../../components/Icon";
@@ -337,7 +338,7 @@ function CourtColorPicker({ me, onSaved }: { me: Me; onSaved: (team: Team) => vo
   );
 }
 
-const swatchStyle = (c: CourtColors) => ({ "--sw-court": c.court, "--sw-kitchen": c.kitchen }) as CSSProperties;
+const swatchStyle = (c: CourtColors) => courtVars(c) as CSSProperties;
 
 function SwatchDiagram() {
   return (

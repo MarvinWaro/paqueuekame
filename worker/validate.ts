@@ -70,9 +70,10 @@ export const updatePlayerSchema = z.object({
   isGuest: z.boolean().optional(),
 });
 
+/** A reviewed pasted list: names, each with an optional skill level. */
 export const bulkPlayersSchema = z.object({
-  names: z
-    .array(text("Name", 40))
+  players: z
+    .array(z.object({ name: text("Name", 40), skill: skill.optional() }))
     .min(1, "Add at least one name.")
     .max(100, "Add up to 100 names at a time."),
 });
@@ -153,12 +154,24 @@ export const umpireSchema = z
 
 const team = z.union([z.literal(1), z.literal(2)], { message: "Pick a team." });
 
-export const umpStartSchema = z.object({ firstServer: team, force: z.boolean().optional() });
+/** Who serves first (coin toss) and each team's base player, who starts on the right side. */
+export const umpStartSchema = z.object({
+  firstServer: team,
+  base1: id.nullable().optional(),
+  base2: id.nullable().optional(),
+  force: z.boolean().optional(),
+});
 
-/** `seq` is how many rallies the phone has seen, so a double tap can't count one rally twice. */
+/** `seq` is how many log events the phone has seen, so a double tap can't count one twice. */
 export const rallySchema = z.object({ seq: z.number().int().min(0).max(500), winner: team });
 
 export const undoRallySchema = z.object({ seq: z.number().int().min(0).max(500) });
+
+/** Umpire corrections: make a player the server as 1st or 2nd server, or swap a team's sides. */
+export const correctionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("server"), seq: z.number().int().min(0).max(500), playerId: id, serverNo: z.union([z.literal(1), z.literal(2)]) }),
+  z.object({ kind: z.literal("swap"), seq: z.number().int().min(0).max(500), team }),
+]);
 
 /** "I'm coming" from the group-chat (live) link: pick a name or type one. */
 export const comingSchema = z

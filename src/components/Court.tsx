@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { LiveScore, MatchView, Player } from "../../shared/types";
+import { courtOrder } from "../../shared/sideout";
 import { clock, names } from "../lib/format";
 
 interface DiagramProps {
@@ -9,16 +10,26 @@ interface DiagramProps {
   youId?: string | null;
   label?: string;
   serverId?: string | null; // marks who is serving while an umpire scores
-  onPlayer?: (p: Player) => void; // makes each name a button (organizer swap)
+  onPlayer?: (p: Player) => void; // makes each name a button (organizer swap, umpire corrections)
+  playerLabel?: (p: Player) => string; // what a screen reader says for that button
 }
 
 /** A pickleball court seen from above: each player stands in a service box, the kitchen sits beside the net. */
-export function CourtDiagram({ team1 = [], team2 = [], winner = null, youId = null, label, serverId = null, onPlayer }: DiagramProps) {
+export function CourtDiagram({
+  team1 = [],
+  team2 = [],
+  winner = null,
+  youId = null,
+  label,
+  serverId = null,
+  onPlayer,
+  playerLabel = (p) => `Swap ${p.name}`,
+}: DiagramProps) {
   const free = team1.length === 0 && team2.length === 0;
   const box = (p: Player | undefined, side: 1 | 2) => {
     const className = `box ${winner === side ? "winner" : ""} ${p && p.id === youId ? "you" : ""} ${p && p.id === serverId ? "serving" : ""}`;
     return p && onPlayer ? (
-      <button type="button" className={className} onClick={() => onPlayer(p)} aria-label={`Swap ${p.name}`}>
+      <button type="button" className={className} onClick={() => onPlayer(p)} aria-label={playerLabel(p)}>
         {p.name}
       </button>
     ) : (
@@ -57,6 +68,8 @@ interface CourtCardProps {
 }
 
 export function CourtCard({ court, match, now, youId, children, menu, onPlayer }: CourtCardProps) {
+  // While an umpire scores, draw players where they actually stand (base player on the right when even).
+  const placed = match?.live ? courtOrder(match.team1, match.team2, match.live.right1, match.live.right2) : match;
   return (
     <article className="court" aria-label={`Court ${court}`}>
       <div className="court-head">
@@ -70,8 +83,8 @@ export function CourtCard({ court, match, now, youId, children, menu, onPlayer }
         {menu}
       </div>
       <CourtDiagram
-        team1={match?.team1}
-        team2={match?.team2}
+        team1={placed?.team1}
+        team2={placed?.team2}
         youId={youId}
         label={`Court ${court} is free`}
         serverId={match?.live?.serverId}

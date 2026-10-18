@@ -87,6 +87,7 @@ export function Players() {
       )}
       {pasting && (
         <PasteList
+          roster={players ?? []}
           onClose={() => setPasting(false)}
           onDone={() => {
             setPasting(false);
@@ -245,23 +246,72 @@ function EditPlayer({
   );
 }
 
-function PasteList({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+interface Draft {
+  key: number;
+  name: string;
+  skill: number | null;
+  on: boolean; // ticked: will be added
+}
+
+/** Paste a list from the group chat, then review it: fix names, set skill levels, skip duplicates. */
+function PasteList({ roster, onClose, onDone }: { roster: RosterPlayer[]; onClose: () => void; onDone: () => void }) {
   const [text, setText] = useState("");
+  const [drafts, setDrafts] = useState<Draft[] | null>(null); // null = still on the paste step
+  const [open, setOpen] = useState<number | null>(null); // which row's skill picker is showing
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
-  // Accept "1. Juan", "- Ana", "Mark ✅" style lines from a group chat.
-  const names = text
-    .split(/\r?\n|,/)
-    .map((line) => line.replace(/^\s*(\d+[.)]|[-*•])\s*/, "").replace(/[^\p{L}\p{N} .'-]/gu, "").trim())
-    .filter(Boolean)
-    .map((n) => n.slice(0, 40));
+  const onRoster = useMemo(() => new Set(roster.map((p) => p.name.toLowerCase())), [roster]);
+
+  // Accept "1. Juan", "- Ana", "Mark ✅" style lines from a group chat; drop repeats.
+  const names = [
+    ...new Map(
+      text
+        .split(/\r?\n|,/)
+        .map((line) => line.replace(/^\s*(\d+[.)]|[-*•])\s*/, "").replace(/[^\p{L}\p{N} .'-]/gu, "").trim().slice(0, 40))
+        .filter(Boolean)
+        .map((n) => [n.toLowerCase(), n] as const),
+    ).values(),
+  ];
+
+  const review = () => {
+    setDrafts(names.map((name, key) => ({ key, name, skill: null, on: !onRoster.has(name.toLowerCase()) })));
+    setOpen(null);
+  };
+  const update = (key: number, change: Partial<Draft>) =>
+    setDrafts((list) => list!.map((d) => (d.key === key ? { ...d, ...change } : d)));
+
+  if (!drafts) {
+    return (
+      <Sheet title="Paste a list" onClose={onClose}>
+        <div className="field">
+          <label htmlFor="paste">One name per line</label>
+          <textarea
+            id="paste"
+            className="input"
+            rows={8}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={"1. Juan\n2. Ana\n3. Mark"}
+          />
+          <span className="hint">Numbers, bullets and emoji are removed. Next you can fix names and set skill levels.</span>
+        </div>
+        <button type="button" className="btn btn-primary btn-block" onClick={review} disabled={names.length === 0}>
+          {names.length ? `Review ${plural(names.length, "name")}` : "Review names"}
+        </button>
+      </Sheet>
+    );
+  }
+
+  const ticked = drafts.filter((d) => d.on && d.name.trim());
+  const allTicked = drafts.every((d) => d.on || onRoster.has(d.name.trim().toLowerCase()));
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ added: number; skipped: number }>("/api/players/bulk", { method: "POST", body: { names } });
+      const players = ticked.map((d) => ({ name: d.name.trim(), skill: d.skill }));
+      const res = await api<{ added: number; skipped: number }>("/api/players/bulk", { method: "POST", body: { players } });
       toast(res.skipped ? `Added ${res.added}. ${res.skipped} were already on the roster.` : `Added ${plural(res.added, "player")}`);
       onDone();
     } catch (err) {
@@ -271,27 +321,102 @@ function PasteList({ onClose, onDone }: { onClose: () => void; onDone: () => voi
   };
 
   return (
-    <Sheet title="Paste a list" onClose={onClose}>
-      <div className="field">
-        <label htmlFor="paste">One name per line</label>
-        <textarea
-          id="paste"
+    <Sheet title="Review players" onClose={onClose}>
+      <div className="review-bar">
+        <label className="tick-all">
+          <input
+            type="checkbox"
+            checked={allTicked}
+            onChange={(e) => setDrafts((list) => list!.map((d) => ({ ...d, on: e.target.checked && !onRoster.has(d.name.trim().toLowerCase()) })))}
+          />
+          <span>{plural(ticked.length, "player")} ticked</span>
+        </label>
+        <select
           className="input"
-          rows={8}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={"1. Juan\n2. Ana\n3. Mark"}
-        />
-        <span className="hint">Numbers, bullets and emoji are removed. Names already on the roster are skipped.</span>
+          aria-label="Set skill for ticked players"
+          value=""
+          onChange={(e) => {
+            const v = e.target.value === "clear" ? null : Number(e.target.value);
+            setDrafts((list) => list!.map((d) => (d.on ? { ...d, skill: v } : d)));
+          }}
+        >
+          <option value="" disabled>
+            Set skill for ticked…
+          </option>
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <option key={n} value={n}>
+              {n} · {skillLabel(n)}
+            </option>
+          ))}
+          <option value="clear">Clear skill</option>
+        </select>
       </div>
+
+      <ul className="review-list">
+        {drafts.map((d) => {
+          const dupe = onRoster.has(d.name.trim().toLowerCase());
+          return (
+            <li key={d.key} className={`review-row ${d.on ? "" : "is-off"}`}>
+              <div className="review-main">
+                <label className="tick" aria-label={`Add ${d.name}`}>
+                  <input type="checkbox" checked={d.on} onChange={(e) => update(d.key, { on: e.target.checked })} />
+                </label>
+                <input
+                  className="input"
+                  value={d.name}
+                  maxLength={40}
+                  aria-label="Name"
+                  onChange={(e) => update(d.key, { name: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className={`btn btn-sm skill-toggle ${d.skill ? "has-skill" : ""}`}
+                  aria-expanded={open === d.key}
+                  onClick={() => setOpen(open === d.key ? null : d.key)}
+                >
+                  {d.skill ? <Skill value={d.skill} plain /> : "Skill"}
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={`Remove ${d.name}`}
+                  onClick={() => setDrafts((list) => list!.filter((x) => x.key !== d.key))}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              {dupe && <span className="review-note">Already on the roster, so it will be skipped.</span>}
+              {open === d.key && (
+                <div className="review-skill">
+                  <SkillPicker
+                    value={d.skill}
+                    onChange={(v) => {
+                      update(d.key, { skill: v });
+                      setOpen(null);
+                    }}
+                  />
+                  <span className="hint">{skillLabel(d.skill)}</span>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <button type="button" className="btn btn-primary btn-block" onClick={submit} disabled={busy || names.length === 0}>
-        {names.length ? `Add ${plural(names.length, "player")}` : "Add players"}
-      </button>
+      <p className="muted small">They join the roster. Check them in from the session when they arrive.</p>
+      <div className="row">
+        <button type="button" className="btn btn-ghost" onClick={() => setDrafts(null)}>
+          <Icon name="back" /> Back
+        </button>
+        <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={submit} disabled={busy || ticked.length === 0}>
+          {busy ? "Adding…" : `Add ${plural(ticked.length, "player")}`}
+        </button>
+      </div>
     </Sheet>
   );
 }

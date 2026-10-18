@@ -13,6 +13,7 @@ import { minutes, ordinal, plural } from "../lib/format";
 import { codeKey, meKey, readItem, removeItem, writeItem } from "../lib/storage";
 import { useApi, useNow } from "../lib/useApi";
 import { GameLog, Podium, SessionSummary, Standings } from "./Results";
+import { Loading } from "../components/Loading";
 
 type Mine =
   | { kind: "unknown" }
@@ -157,7 +158,7 @@ export function Live({ token }: { token: string }) {
       </main>
     );
   }
-  if (!state) return <main className="auth muted">Loading the courts…</main>;
+  if (!state) return <main className="auth"><Loading label="Loading the courts…" /></main>;
 
   const s = state.session;
   const live = s.status === "live";
