@@ -39,7 +39,7 @@ function whereAmI(state: SessionState, me: string | null): Mine {
 }
 
 export function Live({ token }: { token: string }) {
-  const { data: state, setData, error } = useApi<SessionState>(`/api/live/${token}`, { pollMs: 15000 });
+  const { data: state, setData, error } = useApi<SessionState>(`/api/live/${token}`, { pollMs: 5000 });
   const [me, setMe] = useState<string | null>(() => readItem(meKey(token)));
   const code = readItem(codeKey(token));
   const [picking, setPicking] = useState(false);

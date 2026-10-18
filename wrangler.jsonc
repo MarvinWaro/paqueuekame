@@ -10,6 +10,11 @@
 			"custom_domain": true
 		}
 	],
+	// Run the API next to the D1 database (APAC) instead of wherever the visitor's request lands.
+	// Philippine internet providers often reach Cloudflare through the US, and each tap makes several database trips.
+	"placement": {
+		"mode": "smart"
+	},
 	"assets": {
 		// Unknown paths like /live/abc123 load the React app.
 		"not_found_handling": "single-page-application",
